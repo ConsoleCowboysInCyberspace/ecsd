@@ -1,0 +1,18 @@
+__dummy.html
+.dub
+*.a
+*.dll
+*.dylib
+*.exe
+*.lib
+*.lst
+*.o
+*.obj
+*.so
+/ecsd
+docs.json
+docs/
+ecsd-test-*
+
+# libs shouldn't lock, and no deps to lock anyway
+/dub.selections.json
