@@ -10,9 +10,6 @@ import std.traits;
 import ecsd.entity;
 import ecsd.universe;
 
-private alias id(alias x) = x;
-private alias seq(xs...) = xs;
-
 class ComponentCache(Components...)
 {
 	static struct Set
@@ -116,6 +113,9 @@ unittest
 
 private:
 
+alias id(alias x) = x;
+alias seq(xs...) = xs;
+
 string componentIdentifier(Component)()
 {
 	const ident = __traits(identifier, Component).chomp("Component");
@@ -140,28 +140,32 @@ template targetOf(T)
 
 template componentsDelegate(Ret, Components...)
 {
-	alias res = id!"Ret delegate(Entity";
-	static foreach(i, T; Components)
+	string inner()
 	{
-		res = id!(res ~ ", ");
-		static if(!isPointer!T)
-			res = id!(res ~ "ref ");
-		res = id!(res ~ "Components[" ~ i.to!string ~ "]");
+		auto res = "Ret delegate(Entity";
+		static foreach(i, T; Components)
+		{
+			res ~= ", ";
+			static if(!isPointer!T)
+				res ~= "ref ";
+			res ~= "Components[" ~ i.to!string ~ "]";
+		}
+		return res ~ ")";
 	}
-	alias componentsDelegate = mixin(res, ")");
+	
+	alias componentsDelegate = mixin(inner());
 }
 
-template componentDerefs(Cache: ComponentCache!Components, Components...)
+string componentDerefs(Cache: ComponentCache!Components, Components...)()
 {
-	alias derefs = id!"";
+	string res;
 	static foreach(i, T; Components)
 	{
 		static if(i > 0)
-			derefs = id!(derefs ~ ", ");
+			res ~= ", ";
 		static if(!Cache.nullable[i])
-			derefs = id!(derefs ~ "*");
-		derefs = id!(derefs ~ "set.tupleof[" ~ i.to!string ~ "]");
+			res ~= "*";
+		res ~= "set.tupleof[" ~ i.to!string ~ "]";
 	}
-	
-	alias componentDerefs = derefs;
+	return res;
 }
