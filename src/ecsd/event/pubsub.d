@@ -33,8 +33,10 @@ private:
 
 bool isEvent(T)()
 {
-	static assert(is(T == struct), "Event types must be structs");
-	static assert(__traits(isPOD, T), "Event types must not have copy ctors/dtors");
+	enum errPreamble = "Event type " ~ T.stringof ~ " must ";
+	static assert(is(T == struct), errPreamble ~ "be structs");
+	static assert(__traits(isPOD, T), errPreamble ~ "not have copy ctors/dtors");
+	static assert(__traits(compiles, { T x; }), errPreamble ~ "have a default constructor");
 	
 	return true;
 }
