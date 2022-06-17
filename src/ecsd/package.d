@@ -10,4 +10,5 @@ public import ecsd.universe;
 void registerBuiltinComponents(Universe uni)
 {
 	uni.registerComponent!Mailbox;
+	uni.registerComponent!PubSub;
 }
