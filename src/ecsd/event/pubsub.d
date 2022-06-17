@@ -1,5 +1,7 @@
 module ecsd.event.pubsub;
 
+import ecsd.event: isEvent;
+
 void subscribe(Event)(void delegate(ref Event) fn, int priority = 0)
 if(isEvent!Event)
 {
@@ -30,16 +32,6 @@ if(isEvent!Event)
 }
 
 private:
-
-bool isEvent(T)()
-{
-	enum errPreamble = "Event type " ~ T.stringof ~ " must ";
-	static assert(is(T == struct), errPreamble ~ "be a struct");
-	static assert(__traits(isPOD, T), errPreamble ~ "not have copy ctors/dtors");
-	static assert(__traits(compiles, { T x; }), errPreamble ~ "have a default constructor");
-	
-	return true;
-}
 
 struct EventHandler(Event)
 {
