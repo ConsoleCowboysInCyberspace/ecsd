@@ -51,6 +51,30 @@ abstract class Storage(Component): IStorage
 		universe = uni;
 	}
 	
+	protected void runAddHooks(EntityID ent, Component* inst)
+	{
+		static if(__traits(compiles, { Component x; x.onComponentAdded(universe, ent); }))
+			inst.onComponentAdded(universe, ent);
+		else static if(__traits(hasMember, inst, "onComponentAdded"))
+			static assert(false,
+				Component.stringof ~
+				".onComponentAdded does not match the expected signature " ~
+				"(`void onComponentAdded(Universe, EntityID)`) and will not be called"
+			);
+	}
+	
+	protected void runRemoveHooks(EntityID ent, Component* inst)
+	{
+		static if(__traits(compiles, { Component x; x.onComponentRemoved(universe, ent); }))
+			inst.onComponentRemoved(universe, ent);
+		else static if(__traits(hasMember, inst, "onComponentRemoved"))
+			static assert(false,
+				Component.stringof ~
+				".onComponentRemoved does not match the expected signature " ~
+				"(`void onComponentRemoved(Universe, EntityID)`) and will not be called"
+			);
+	}
+	
 	abstract bool has(EntityID ent)
 	in(
 		universe.ownsEntity(ent),
@@ -84,6 +108,49 @@ abstract class Storage(Component): IStorage
 	);
 }
 
+version(unittest)
+bool runStorageTests(alias Storage)()
+{
+	import ecsd.universe;
+	
+	static struct Foo
+	{
+		bool added;
+		bool removed;
+		
+		void onComponentAdded(Universe, EntityID)
+		{
+			added = true;
+		}
+		
+		void onComponentRemoved(Universe, EntityID)
+		{
+			removed = true;
+		}
+	}
+	
+	auto uni = new Universe(null);
+	auto ent = uni.allocEntity;
+	auto storage = new Storage!Foo(uni);
+	
+	assert(!storage.has(ent));
+	
+	auto inst = &storage.add(ent, Foo.init);
+	assert(storage.has(ent));
+	assert(inst.added);
+	assert(!inst.removed);
+	
+	assert(&storage.get(ent) == inst);
+	
+	storage.remove(ent);
+	assert(!storage.has(ent));
+	assert(inst.removed);
+	
+	return true;
+}
+else
+bool runStorageTests(alias Storage)() { return true; }
+
 final class FlatStorage(Component): Storage!Component
 {
 	Pair[] storage;
@@ -103,12 +170,15 @@ final class FlatStorage(Component): Storage!Component
 		Pair* pair = &storage[ent.id];
 		pair.serial = ent.serial;
 		pair.instance = inst;
+		runAddHooks(ent, &pair.instance);
 		return pair.instance;
 	}
 	
 	override void remove(EntityID ent)
 	{
-		storage[ent.id].serial = EntityID.Serial.max;
+		auto ptr = &storage[ent.id];
+		runRemoveHooks(ent, &ptr.instance);
+		ptr.serial = EntityID.Serial.max;
 	}
 	
 	override ref Component get(EntityID ent)
@@ -116,6 +186,7 @@ final class FlatStorage(Component): Storage!Component
 		return storage[ent.id].instance;
 	}
 }
+static assert(runStorageTests!FlatStorage);
 
 final class HashStorage(Component): Storage!Component
 {
@@ -142,12 +213,15 @@ final class HashStorage(Component): Storage!Component
 		
 		pair.serial = ent.serial;
 		pair.instance = inst;
+		runAddHooks(ent, &pair.instance);
 		return pair.instance;
 	}
 	
 	override void remove(EntityID ent)
 	{
-		storage[ent.id].serial = EntityID.Serial.max;
+		auto pair = ent.id in storage;
+		runRemoveHooks(ent, &pair.instance);
+		pair.serial = EntityID.Serial.max;
 	}
 	
 	override ref Component get(EntityID ent)
@@ -155,3 +229,4 @@ final class HashStorage(Component): Storage!Component
 		return storage[ent.id].instance;
 	}
 }
+static assert(runStorageTests!HashStorage);
