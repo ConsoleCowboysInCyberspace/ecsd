@@ -27,6 +27,7 @@ package bool isComponent(T)()
 
 package interface IStorage {}
 
+/// Base class for component storage implementations.
 abstract class Storage(Component): IStorage
 {
 	private import std.string: format;
@@ -36,21 +37,40 @@ abstract class Storage(Component): IStorage
 	
 	private enum componentName = Component.stringof;
 	
+	/++
+		Pairing of an entity serial number and component instance.
+		
+		Storage implementations must track entity serial numbers to enforce correctness. The serial
+		can also be used as a sentinel (by setting it to `-1`) to guard memory reuse.
+	+/
 	protected static struct Pair
 	{
 		EntityID.Serial serial;
 		Component instance;
 	}
 	
+	/// The universe that owns this storage instance.
 	protected Universe universe;
 	
 	invariant(universe !is null);
 	
+	/++
+		Storage constructor. User code should $(B never) call this directly, only ever within a
+		storage implementation's constructor.
+	+/
 	this(Universe uni)
 	{
 		universe = uni;
 	}
 	
+	/++
+		These must be called in the implementation whenever a component is added to/removed from
+		an entity.
+		
+		They fire optional hook methods in the component type, allowing components to get at their
+		owning universe and entity, and perhaps other nontrivial behaviors such as
+		acquiring/releasing resources.
+	+/
 	protected void runAddHooks(EntityID ent, Component* inst)
 	{
 		static if(__traits(compiles, { Component x; x.onComponentAdded(universe, ent); }))
@@ -63,6 +83,7 @@ abstract class Storage(Component): IStorage
 			);
 	}
 	
+	/// ditto
 	protected void runRemoveHooks(EntityID ent, Component* inst)
 	{
 		static if(__traits(compiles, { Component x; x.onComponentRemoved(universe, ent); }))
@@ -75,6 +96,7 @@ abstract class Storage(Component): IStorage
 			);
 	}
 	
+	/// Returns whether the associated component type exists on the given entity.
 	abstract bool has(EntityID ent)
 	in(
 		universe.ownsEntity(ent),
@@ -83,6 +105,11 @@ abstract class Storage(Component): IStorage
 		)
 	);
 	
+	/++
+		Attaches the provided component instance to the given entity.
+		
+		Returns: reference to the stored instance
+	+/
 	abstract ref Component add(EntityID ent, Component inst)
 	in(
 		!has(ent),
@@ -91,6 +118,7 @@ abstract class Storage(Component): IStorage
 		)
 	);
 	
+	/// Removes the associated component type from the given entity.
 	abstract void remove(EntityID ent)
 	in(
 		has(ent),
@@ -99,6 +127,7 @@ abstract class Storage(Component): IStorage
 		)
 	);
 	
+	/// Returns a reference to the associated component type on the given entity.
 	abstract ref Component get(EntityID ent)
 	in(
 		has(ent),
@@ -108,6 +137,15 @@ abstract class Storage(Component): IStorage
 	);
 }
 
+/++
+	Runs tests upon the given storage implementation, when building with unittests.
+	
+	Examples:
+	------
+	final class MyStorage(Component): Storage!Component { /* ... */ }
+	static assert(runStorageTests!MyStorage);
+	------
++/
 version(unittest)
 bool runStorageTests(alias Storage)()
 {
@@ -151,6 +189,14 @@ bool runStorageTests(alias Storage)()
 else
 bool runStorageTests(alias Storage)() { return true; }
 
+/++
+	Storage implementation backed by a plain array, indexed by entity id.
+	
+	Can be very memory expensive, as the length of the array will be the largest entity id that has
+	an instance of the associated component. However component lookups (all operations really) are
+	constant time, and so for components which all (or most) entities have this may yield superior
+	performance.
++/
 final class FlatStorage(Component): Storage!Component
 {
 	Pair[] storage;
@@ -188,6 +234,12 @@ final class FlatStorage(Component): Storage!Component
 }
 static assert(runStorageTests!FlatStorage);
 
+/++
+	Storage implementation backed by a hashmap.
+	
+	Offers good balance between memory usage and lookup speed. Currently used as the default storage
+	implementation when one is not explicitly given to `ecsd.universe.Universe.registerComponent`.
++/
 final class HashStorage(Component): Storage!Component
 {
 	Pair[EntityID.EID] storage;

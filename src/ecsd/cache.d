@@ -10,13 +10,50 @@ import std.traits;
 import ecsd.entity;
 import ecsd.universe;
 
+/++
+	A cache of entities which have all (or some) of the given components, and pointers to those
+	components.
+	
+	If a component type is specified as a pointer, that component type is considered optional.
+	Entities which do not have such a component will still be included, with a null pointer cached
+	in their `Set`.
+	
+	Examples:
+	------
+	auto physicsBodies = new ComponentCache!(Transform, RigidBody, KinematicController*)(universe);
+	physicsBodies.refresh();
+	foreach(ent, ref transform, ref rigidBody, controllerPtr; physicsBodies)
+	{
+		if(controllerPtr !is null)
+			rigidBody.velocity += controllerPtr.acceleration;
+		transform.position += rigidBody.velocity;
+	}
+	------
+	
+	------
+	auto quads = new ComponentCache!(Transform, QuadRender)(universe);
+	quads.refresh();
+	// may iterate directly on the list of pointer sets
+	foreach(ent; quads)
+	{
+		auto rect = Rect(ent.transform.pos, ent.quadRender.size);
+		fillRect(rect);
+	}
+	------
++/
 class ComponentCache(Components...)
 {
+	/++
+		A set of pointers to each of the given component types, for a single entity.
+		
+		The name of each field is derived from the name of the component type.
+		E.g. `Transform` => `transform`, `RenderComponent` => `render`.
+	+/
 	static struct Set
 	{
 		static foreach(i, Ptr; staticMap!(pointerOf, Components))
 			mixin("Ptr ", componentIdentifier!(targetOf!(Components[i])), ";");
-		EntityID id;
+		EntityID id; // The id of the entity which owns these components.
 		alias id this;
 	}
 	
@@ -24,11 +61,20 @@ class ComponentCache(Components...)
 	private Universe universe;
 	private Appender!(Set[]) _entities;
 	
+	/// Constructor. Entities will be queried from the given universe.
 	this(Universe uni)
 	{
 		universe = uni;
 	}
 	
+	/++
+		Refreshes list of entities and component pointers in this cache.
+		
+		This must be called after *any* component listed in this cache has been added to/removed
+		from any entity in the associated universe, even if that entity is not in this cache. Storage
+		implementations are free to invalidate component pointers after any such operation (e.g. 
+		a realloc was needed,) and so using a stale cache may dereference invalid pointers.
+	+/
 	void refresh()
 	{
 		_entities.clear;
@@ -48,11 +94,13 @@ class ComponentCache(Components...)
 		}
 	}
 	
+	/// Returns all currently cached `Set`s of pointers.
 	Set[] entities()
 	{
 		return _entities.data[];
 	}
 	
+	/// Iterate over this cache, taking each entity's entire pointer `Set`.
 	int opApply(scope int delegate(Set) dg)
 	{
 		foreach(set; entities)
@@ -61,6 +109,12 @@ class ComponentCache(Components...)
 		return 0;
 	}
 	
+	/++
+		Iterate over this cache, taking each cached pointer as a separate loop variable.
+		
+		$(B Note:) for each $(I required) component the loop variable must be taken by ref, otherwise
+		any component mutations will be upon a copy within the loop.
+	+/
 	int opApply(scope componentsDelegate!(int, Components) dg)
 	{
 		enum string derefs = componentDerefs!(typeof(this));

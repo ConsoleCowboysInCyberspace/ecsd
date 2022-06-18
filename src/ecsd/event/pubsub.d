@@ -2,6 +2,13 @@ module ecsd.event.pubsub;
 
 import ecsd.event: isEvent;
 
+/++
+	Register the given function to be called whenever an event of the corresponding type is
+	`publish`ed.
+	
+	Params:
+		priority = dispatch order of event handlers, descending (larger priorities execute first)
++/
 void subscribe(Event)(void delegate(ref Event) fn, int priority = 0)
 if(isEvent!Event)
 {
@@ -11,6 +18,7 @@ if(isEvent!Event)
 	evs.sort!"a.priority > b.priority";
 }
 
+/// ditto
 void subscribe(Event)(void function(ref Event) fn, int priority = 0)
 if(isEvent!Event)
 {
@@ -18,6 +26,9 @@ if(isEvent!Event)
 	subscribe(fn.toDelegate, priority);
 }
 
+/++
+	Immediately dispatches the given event, passing it to all registered subscribers.
++/
 void publish(Event)(auto ref Event ev)
 if(isEvent!Event)
 {
@@ -25,6 +36,7 @@ if(isEvent!Event)
 		handler.fn(ev);
 }
 
+/// ditto
 void publish(Event)()
 if(isEvent!Event)
 {

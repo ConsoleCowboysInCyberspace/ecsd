@@ -6,13 +6,24 @@ import std.range;
 
 import ecsd.entity;
 
+/++
+	A universe is a collection of components, and a grouping of entities. Entities within the same
+	universe will interact, but entities of differing universes will not.
+	
+	Universes will typically correspond to game worlds, one per world. But differing universes may
+	be used for any variety of uses, e.g. layers in a component-based user interface system.
++/
 final class Universe
 {
 	import ecsd.storage: HashStorage, IStorage, Storage, isComponent;
 	
+	// global counter for universe IDs
     private static EntityID.UID uidCounter;
+	
+	// entity ID counter
     private EntityID.EID eidCounter;
     
+	/// The id of this universe, corresponding to `EntityID.uid`.
 	const EntityID.UID id;
     private bool free;
 	
@@ -31,8 +42,8 @@ final class Universe
 	}
 	private StorageVtable[TypeInfo] storages;
 	
-	private EntityID[] freeEnts;
-	private EntityID[] usedEnts;
+	private EntityID[] freeEnts; // set of ents that have been allocated but are unused
+	private EntityID[] usedEnts; // entities actively being used (alive/spawned)
     
     private this()
     {
@@ -53,12 +64,19 @@ final class Universe
 		storages.clear;
 	}
 	
+	/// Returns: whether this universe has been set up to store components of the given type.
 	bool hasComponent(Component)() const
 	{
 		static assert(isComponent!Component);
 		return (typeid(Component) in storages) !is null;
 	}
 	
+	/++
+		Register the given component type to be usable with entities of this universe.
+		
+		Params:
+			StorageTpl = `ecsd.storage.Storage` implementation to use for this component
+	+/
 	void registerComponent(Component, alias StorageTpl = HashStorage)()
 	in(!hasComponent!Component)
 	{
@@ -113,18 +131,30 @@ final class Universe
 		storages[typeid(Component)] = vtable;
 	}
 	
+	/++
+		Remove registration of the given component type from this universe.
+		
+		Any entities with the component will have it implicitly removed.
+	+/
 	void deregisterComponent(Component)()
 	in(hasComponent!Component)
 	{
+		// FIXME: should probably call remove for all ents
+		// components' remove hooks may manage resources
 		storages.remove(typeid(Component));
 	}
 	
+	/++
+		Returns the $(LREF Storage) instance that was registered to store components of the
+		given type.
+	+/
 	Storage!Component getStorage(Component)() inout
 	in(hasComponent!Component)
 	{
 		return cast(typeof(return))storages[typeid(Component)].inst;
 	}
 	
+	/// Returns whether this universe owns the given entity.
 	bool ownsEntity(EntityID ent) const
 	{
 		bool extra = true;
@@ -137,6 +167,7 @@ final class Universe
 		return ent.uid == id && extra;
 	}
 	
+	/// Returns whether the given entity is currently alive.
 	bool isEntityAlive(EntityID ent) const
 	in(ownsEntity(ent))
 	{
@@ -145,6 +176,11 @@ final class Universe
 		return usedEnts.canFind(ent);
 	}
 	
+	/++
+		Allocates a new entity within this universe.
+	
+		Returns: the `EntityID` of the new entity.
+	+/
 	EntityID allocEntity()
 	{
 		if(freeEnts.empty)
@@ -160,6 +196,7 @@ final class Universe
 		return res;
 	}
 	
+	/// Destroys the given entity.
 	void freeEntity(EntityID ent)
 	in(ownsEntity(ent) && isEntityAlive(ent))
 	{
@@ -168,6 +205,7 @@ final class Universe
 		freeEntityInternal(ent, index);
 	}
 	
+	/// ditto
 	void freeEntity(Entity ent)
 	{
 		freeEntity(ent.id);
@@ -183,17 +221,20 @@ final class Universe
 			vtable.remove(ent);
 	}
 	
+	/// Destroys all entities that are currently alive in this universe.
 	void destroyAllEntities()
 	{
 		foreach_reverse(i, eid; usedEnts)
 			freeEntityInternal(eid, i);
 	}
 	
+	/// Returns a slice of `EntityID`s which are currently alive in this universe.
 	EntityID[] activeEntities()
 	{
 		return usedEnts[];
 	}
 	
+	/// Loop over all entities that are alive in this universe.
 	int opApply(scope int delegate(Entity) dg)
 	{
 		foreach(eid; activeEntities)
@@ -202,6 +243,7 @@ final class Universe
 		return 0;
 	}
 	
+	/// Allocates a new universe and places into it copies of every entity in this universe.
 	Universe dup()
 	{
 		auto newUni = allocUniverse;
@@ -244,6 +286,7 @@ unittest
 
 private Universe[] universes;
 
+/// Allocate a new universe.
 Universe allocUniverse()
 {
     auto uid = universes.countUntil!(u => u.free);
@@ -264,14 +307,22 @@ Universe allocUniverse()
     return res;
 }
 
+/// Destroys the given universe, and in turn all its entities.
 void freeUniverse(Universe uni)
 {
+	assert(!uni.free);
     uni.onDestroy();
     uni.free = true;
 }
 
+/++
+	Returns a universe reference given its id.
+	
+	May return a universe that has been freed.
++/
 Universe findUniverse(EntityID.UID uid)
 {
+	assert(universes.length > uid);
 	return universes[uid];
 }
 

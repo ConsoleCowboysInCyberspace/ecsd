@@ -4,6 +4,9 @@ import ecsd.entity: EntityID, Entity;
 import ecsd.event: isEvent;
 import ecsd.universe;
 
+/++
+	A component implementing an entity->entity event model similar to `ecsd.event.pubsub`.
++/
 struct PubSub
 {
 	private EntityID owningEnt;
@@ -19,6 +22,13 @@ struct PubSub
 		handlers.clear;
 	}
 	
+	/++
+		Register the given function to be called whenever an event of the corresponding type is
+		`publish`ed to this entity.
+		
+		Params:
+			priority = dispatch order of event handlers, descending (larger priorities execute first)
+	+/
 	void subscribe(Event)(void delegate(Entity, ref Event) fn, int priority = 0)
 	if(isEvent!Event)
 	{
@@ -30,6 +40,7 @@ struct PubSub
 		(*ptr).sort!"a.priority > b.priority";
 	}
 	
+	/// ditto
 	void subscribe(Event)(void function(Entity, ref Event) fn, int priority = 0)
 	if(isEvent!Event)
 	{
@@ -37,6 +48,9 @@ struct PubSub
 		subscribe(toDelegate(fn), priority);
 	}
 	
+	/++
+		Immediately dispatches the given event, passing it to all subscribers registered to this entity.
+	+/
 	void publish(Event)(auto ref Event ev)
 	if(isEvent!Event)
 	{
@@ -45,6 +59,7 @@ struct PubSub
 			handler.reconstruct!Event()(ent, ev);
 	}
 	
+	/// ditto
 	void publish(Event)()
 	if(isEvent!Event)
 	{
