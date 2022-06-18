@@ -1,3 +1,8 @@
 name "ecsd"
 
 targetType "sourceLibrary"
+
+buildType "ddox-json" {
+	buildOptions "syntaxOnly"
+	dflags "-c" "-D" "-X" "-Xfdocs.json"
+}
