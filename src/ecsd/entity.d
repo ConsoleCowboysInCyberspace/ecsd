@@ -46,7 +46,7 @@ struct Entity
 	
 	@disable this();
 	
-	/// Wrap an `EntityID`. If unspecified, will find the owning `Universe` from the given id.
+	/// Wrap an `EntityID`. If unspecified, will find the owning `ecsd.universe.Universe` from the given id.
 	this(EntityID id)
 	{
 		_id = id;
@@ -72,7 +72,7 @@ struct Entity
 		return _id;
 	}
 	
-	/// Returns owning `Universe`.
+	/// Returns owning `ecsd.universe.Universe`.
 	Universe universe()
 	{
 		return _uni;

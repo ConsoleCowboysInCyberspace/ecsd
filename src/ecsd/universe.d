@@ -23,7 +23,7 @@ final class Universe
 	// entity ID counter
     private EntityID.EID eidCounter;
     
-	/// The id of this universe, corresponding to `EntityID.uid`.
+	/// The id of this universe, corresponding to `ecsd.entity.EntityID.uid`.
 	const EntityID.UID id;
     private bool free;
 	
@@ -64,7 +64,7 @@ final class Universe
 		storages.clear;
 	}
 	
-	/// Returns: whether this universe has been set up to store components of the given type.
+	/// Returns whether this universe has been set up to store components of the given type.
 	bool hasComponent(Component)() const
 	{
 		static assert(isComponent!Component);
@@ -179,7 +179,7 @@ final class Universe
 	/++
 		Allocates a new entity within this universe.
 	
-		Returns: the `EntityID` of the new entity.
+		Returns: the `ecsd.entity.EntityID` of the new entity.
 	+/
 	EntityID allocEntity()
 	{
@@ -228,7 +228,7 @@ final class Universe
 			freeEntityInternal(eid, i);
 	}
 	
-	/// Returns a slice of `EntityID`s which are currently alive in this universe.
+	/// Returns a slice of `ecsd.entity.EntityID`s which are currently alive in this universe.
 	EntityID[] activeEntities()
 	{
 		return usedEnts[];
