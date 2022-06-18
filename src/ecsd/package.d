@@ -2,6 +2,7 @@ module ecsd;
 
 public import ecsd.cache;
 public import ecsd.entity;
+public import ecsd.event.entity_pubsub;
 public import ecsd.event.pubsub;
 public import ecsd.storage;
 public import ecsd.universe;
@@ -12,9 +13,5 @@ public import ecsd.universe;
 +/
 void registerBuiltinComponents(Universe uni)
 {
-	import ecsd.event.entity_pubsub;
-	import ecsd.event.mailbox;
-	
-	uni.registerComponent!Mailbox;
 	uni.registerComponent!PubSub;
 }
