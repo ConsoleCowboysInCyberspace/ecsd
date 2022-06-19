@@ -55,6 +55,7 @@ final class Universe
 	// dummy constructor for CTFE tests
 	package this(typeof(null))
 	{
+		assert(__ctfe);
 		id = 0;
 	}
 	
@@ -205,12 +206,6 @@ final class Universe
 		freeEntityInternal(ent, index);
 	}
 	
-	/// ditto
-	void freeEntity(Entity ent)
-	{
-		freeEntity(ent.id);
-	}
-	
 	private void freeEntityInternal(EntityID ent, size_t index)
 	{
 		usedEnts = usedEnts.remove!(SwapStrategy.unstable)(index);
@@ -243,6 +238,35 @@ final class Universe
 		return 0;
 	}
 	
+	/++
+		Copies all components from one entity into another.
+		
+		Components that already exist on the target entity will be overwritten.
+		
+		The entity being copied into may be in a different universe, but use care as components
+		that are not registered in the other universe will be silently skipped.
+		
+		Params:
+			source = entity to copy from, must be alive and owned by this universe
+			destination = entity to copy into, if unspecified a new entity is made in this universe
+		
+		Returns: destination entity ID
+	+/
+	EntityID copyEntity(EntityID source, EntityID destination)
+	in(ownsEntity(source) && isEntityAlive(source))
+	{
+		foreach(vtable; storages.byValue)
+			vtable.copy(source, destination);
+		return destination;
+	}
+
+	/// ditto
+	EntityID copyEntity(EntityID source)
+	in(ownsEntity(source) && isEntityAlive(source))
+	{
+		return copyEntity(source, allocEntity);
+	}
+	
 	/// Allocates a new universe and places into it copies of every entity in this universe.
 	Universe dup()
 	{
@@ -254,8 +278,7 @@ final class Universe
 		foreach(ent; this)
 		{
 			auto newEnt = newUni.allocEntity;
-			foreach(vtable; storages.byValue)
-				vtable.copy(ent.id, newEnt);
+			copyEntity(ent.id, newEnt);
 		}
 		
 		return newUni;
@@ -282,6 +305,13 @@ unittest
 	uni.freeEntity(ent);
 	assert(uni.ownsEntity(ent));
 	assert(!uni.isEntityAlive(ent));
+	
+	uni.registerComponent!TestComponent;
+	auto storage = uni.getStorage!TestComponent;
+	ent = uni.allocEntity;
+	storage.add(ent, TestComponent.init);
+	auto e2 = uni.copyEntity(ent);
+	assert(storage.has(e2));
 }
 
 private Universe[] universes;

@@ -71,6 +71,7 @@ struct Entity
 	{
 		return _id;
 	}
+	alias id this;
 	
 	/// Returns owning `ecsd.universe.Universe`.
 	Universe universe()
