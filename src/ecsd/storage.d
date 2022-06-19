@@ -199,7 +199,7 @@ bool runStorageTests(alias Storage)() { return true; }
 +/
 final class FlatStorage(Component): Storage!Component
 {
-	Pair[] storage;
+	private Pair[] storage;
 	
 	this(Universe uni) { super(uni); }
 	
@@ -237,12 +237,11 @@ static assert(runStorageTests!FlatStorage);
 /++
 	Storage implementation backed by a hashmap.
 	
-	Offers good balance between memory usage and lookup speed. Currently used as the default storage
-	implementation when one is not explicitly given to `ecsd.universe.Universe.registerComponent`.
+	Offers good balance between memory usage and lookup speed.
 +/
 final class HashStorage(Component): Storage!Component
 {
-	Pair[EntityID.EID] storage;
+	private Pair[EntityID.EID] storage;
 	
 	this(Universe uni) { super(uni); }
 	
@@ -282,3 +281,83 @@ final class HashStorage(Component): Storage!Component
 	}
 }
 static assert(runStorageTests!HashStorage);
+
+/++
+	Storage implementation optimized for components with no fields (marker components,) backed
+	by a bit array.
++/
+final class NullStorage(Component): Storage!Component
+{
+	import std.bitmanip;
+	
+	static assert(Component.tupleof.length == 0, "NullStorage can only be used with empty structs");
+	
+	// instance for return value of add/get, and passing to `run*Hooks`
+	private static Component dummyInstance;
+	private BitArray storage;
+	
+	this(Universe uni) { super(uni); }
+	
+	override bool has(EntityID ent)
+	{
+		return storage.length > ent.id && storage[ent.id];
+	}
+	
+	override ref Component add(EntityID ent, Component inst)
+	{
+		if(storage.length <= ent.id)
+			storage.length = ent.id + 1;
+		storage[ent.id] = true;
+		runAddHooks(ent, &dummyInstance);
+		return dummyInstance;
+	}
+	
+	override void remove(EntityID ent)
+	{
+		storage[ent.id] = false;
+		runRemoveHooks(ent, &dummyInstance);
+	}
+	
+	override ref Component get(EntityID ent)
+	{
+		return dummyInstance;
+	}
+}
+
+// rewriting `runStorageTests` to accommodate `NullStorage` is not CTFE friendly :(
+unittest
+{
+	import ecsd.universe;
+	
+	static struct Foo
+	{
+		static bool added;
+		static bool removed;
+		
+		void onComponentAdded(Universe, EntityID)
+		{
+			added = true;
+		}
+		
+		void onComponentRemoved(Universe, EntityID)
+		{
+			removed = true;
+		}
+	}
+	
+	auto uni = allocUniverse;
+	scope(exit) freeUniverse(uni);
+	auto ent = uni.allocEntity;
+	auto storage = new NullStorage!Foo(uni);
+	
+	assert(!storage.has(ent));
+	
+	storage.add(ent, Foo.init);
+	assert(storage.has(ent));
+	assert(Foo.added);
+	assert(!Foo.removed);
+	
+	storage.remove(ent);
+	assert(!storage.has(ent));
+	assert(Foo.removed);
+}
