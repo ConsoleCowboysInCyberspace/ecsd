@@ -15,7 +15,7 @@ import ecsd.entity;
 +/
 final class Universe
 {
-	import ecsd.storage: HashStorage, IStorage, Storage, isComponent;
+	import ecsd.storage;
 	
 	// global counter for universe IDs
     private static EntityID.UID uidCounter;
@@ -75,6 +75,11 @@ final class Universe
 	/++
 		Register the given component type to be usable with entities of this universe.
 		
+		If no storage implementation is specified, `ecsd.storage.HashStorage` will be used.
+		
+		If the component type is empty (has no fields,) `ecsd.storage.NullStorage` is $(B always)
+		used, regardless of any explicitly specified type.
+		
 		Params:
 			StorageTpl = `ecsd.storage.Storage` implementation to use for this component
 	+/
@@ -83,21 +88,26 @@ final class Universe
 	{
 		static assert(isComponent!Component);
 		
+		static if(Component.tupleof.length == 0)
+			alias StorageT = NullStorage;
+		else
+			alias StorageT = StorageTpl;
+		
 		static assert(
-			__traits(isTemplate, StorageTpl),
+			__traits(isTemplate, StorageT),
 			"Must pass storage type template to registerComponent"
 		);
-		alias StorageInst = StorageTpl!Component;
+		alias StorageInst = StorageT!Component;
 		static assert(
 			is(StorageInst: Storage!Component),
-			"Storage type " ~ fullyQualifiedName!StorageTpl ~ " does not extend Storage!T"
+			"Storage type " ~ fullyQualifiedName!StorageT ~ " does not extend Storage!T"
 		);
 		auto inst = new StorageInst(this);
 		
 		void register(Universe uni)
 		{
 			if(!uni.hasComponent!Component)
-				uni.registerComponent!(Component, StorageTpl);
+				uni.registerComponent!(Component, StorageT);
 		}
 		
 		void remove(EntityID eid)

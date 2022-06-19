@@ -237,7 +237,8 @@ static assert(runStorageTests!FlatStorage);
 /++
 	Storage implementation backed by a hashmap.
 	
-	Offers good balance between memory usage and lookup speed.
+	Offers good balance between memory usage and lookup speed. As such, this is currently the
+	default storage type used for non-empty components.
 +/
 final class HashStorage(Component): Storage!Component
 {
@@ -283,8 +284,11 @@ final class HashStorage(Component): Storage!Component
 static assert(runStorageTests!HashStorage);
 
 /++
-	Storage implementation optimized for components with no fields (marker components,) backed
-	by a bit array.
+	Storage implementation backed by a bit array, optimizing for empty components
+	(i.e. has no fields; marker components.)
+	
+	When registering such a component, this type will $(B always) be chosen as the storage type,
+	ignoring any explicitly specified.
 +/
 final class NullStorage(Component): Storage!Component
 {
