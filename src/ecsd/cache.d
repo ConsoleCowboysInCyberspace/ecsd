@@ -1,3 +1,4 @@
+///
 module ecsd.cache;
 
 import std.algorithm;

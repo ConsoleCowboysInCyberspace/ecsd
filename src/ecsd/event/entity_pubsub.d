@@ -1,3 +1,4 @@
+///
 module ecsd.event.entity_pubsub;
 
 import ecsd.entity: EntityID, Entity;

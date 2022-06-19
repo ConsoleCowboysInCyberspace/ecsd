@@ -1,10 +1,20 @@
+///
 module ecsd.entity;
 
 /// The raw type used to reference any given entity.
 struct EntityID
 {
+	/++
+		The types of each part of this full entity ID.
+		
+		For use in storages and other places where partial IDs are needed.
+	+/
 	alias EID = uint;
+	
+	/// ditto
 	alias UID = ushort;
+	
+	/// ditto
 	alias Serial = ushort;
 	
 	/++

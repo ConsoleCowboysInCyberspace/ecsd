@@ -1,3 +1,4 @@
+///
 module ecsd.storage;
 
 import ecsd.entity: EntityID;

@@ -1,3 +1,4 @@
+///
 module ecsd.event.pubsub;
 
 import ecsd.event: isEvent;
