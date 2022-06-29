@@ -1,15 +1,20 @@
 ///
 module ecsd.cache;
 
+import core.time;
 import std.algorithm;
 import std.array;
 import std.conv;
 import std.meta;
 import std.string;
 import std.traits;
+import std.typecons;
 
 import ecsd.entity;
 import ecsd.universe;
+
+/// Controls whether `ComponentCache.refresh` ignores timestamps.
+alias ForceRefresh = Flag!"ForceRefresh";
 
 /++
 	A cache of entities which have all (or some) of the given components, and pointers to those
@@ -61,6 +66,7 @@ class ComponentCache(Components...)
 	private alias nullable = staticMap!(isPointer, Components);
 	private Universe universe;
 	private Appender!(Set[]) _entities;
+	private MonoTime lastRefreshed = MonoTime.zero;
 	
 	/// Constructor. Entities will be queried from the given universe.
 	this(Universe uni)
@@ -68,16 +74,30 @@ class ComponentCache(Components...)
 		universe = uni;
 	}
 	
+	/// Returns whether this cache is outdated, and needs to be `refresh`ed.
+	bool stale() const
+	{
+		if(universe.lastAnyInvalidated < lastRefreshed)
+			return false;
+		
+		static auto types = typeids!(staticMap!(targetOf, Components));
+		return types
+			.map!(ti => universe.getInvalidationTimestamp(ti) >= lastRefreshed)
+			.any
+		;
+	}
+	
 	/++
 		Refreshes list of entities and component pointers in this cache.
 		
-		This must be called after *any* component listed in this cache has been added to/removed
-		from any entity in the associated universe, even if that entity is not in this cache. Storage
-		implementations are free to invalidate component pointers after any such operation (e.g. 
-		a realloc was needed,) and so using a stale cache may dereference invalid pointers.
+		This method $(B must) be called (every iteration of the game loop) before using the cache.
 	+/
-	void refresh()
+	void refresh(ForceRefresh forceRefresh = ForceRefresh.no)
 	{
+		if(forceRefresh != ForceRefresh.yes && !stale)
+			return;
+		lastRefreshed = MonoTime.currTime;
+		
 		_entities.clear;
 		outer: foreach(ent; universe)
 		{
@@ -157,6 +177,12 @@ unittest
 	cache1.refresh;
 	assert(entityIDs(cache1).equal([e1.id]));
 	
+	auto e3 = Entity(uni.allocEntity, uni);
+	assert(!cache1.stale);
+	e3.add!C1;
+	assert(cache1.stale);
+	e3.free;
+	
 	auto cache2 = new ComponentCache!C2(uni);
 	cache2.refresh;
 	assert(entityIDs(cache2).equal([e2.id]));
@@ -223,4 +249,12 @@ string componentDerefs(Cache: ComponentCache!Components, Components...)()
 		res ~= "set.tupleof[" ~ i.to!string ~ "]";
 	}
 	return res;
+}
+
+TypeInfo[] typeids(Components...)()
+{
+	typeof(return) result;
+	static foreach(T; Components)
+		result ~= typeid(T);
+	return result;
 }

@@ -1,6 +1,7 @@
 ///
 module ecsd.universe;
 
+import core.time;
 import std.algorithm;
 import std.exception;
 import std.range;
@@ -32,6 +33,9 @@ final class Universe
 	{
 		IStorage inst;
 		
+		// timestamp of last operation which may have invalidated component caches
+		MonoTime lastInvalidated;
+		
 		// register this component type with another universe, if it doesn't already have it
 		void delegate(Universe other) register;
 		
@@ -42,6 +46,9 @@ final class Universe
 		void delegate(EntityID src, EntityID dest) copy;
 	}
 	private StorageVtable[TypeInfo] storages;
+	
+	// max of all storages' lastInvalidated timestamps, allowing caches to skip checking each storage
+	package MonoTime lastAnyInvalidated;
 	
 	private EntityID[] freeEnts; // set of ents that have been allocated but are unused
 	private EntityID[] usedEnts; // entities actively being used (alive/spawned)
@@ -136,6 +143,7 @@ final class Universe
 		
 		StorageVtable vtable = {
 			inst,
+			MonoTime.currTime,
 			&register,
 			&remove,
 			&copy,
@@ -164,6 +172,18 @@ final class Universe
 	in(hasComponent!Component)
 	{
 		return cast(typeof(return))storages[typeid(Component)].inst;
+	}
+	
+	package void onStorageInvalidated(TypeInfo component)
+	in(component in storages)
+	{
+		lastAnyInvalidated = storages[component].lastInvalidated = MonoTime.currTime;
+	}
+	
+	package MonoTime getInvalidationTimestamp(TypeInfo component) const
+	in(component in storages)
+	{
+		return storages[component].lastInvalidated;
 	}
 	
 	/// Returns whether this universe owns the given entity.

@@ -65,8 +65,8 @@ abstract class Storage(Component): IStorage
 	}
 	
 	/++
-		These must be called in the implementation whenever a component is added to/removed from
-		an entity.
+		These methods $(B must) be called in the implementation whenever a component is added
+		to/removed from an entity.
 		
 		They fire optional hook methods in the component type, allowing components to get at their
 		owning universe and entity, and perhaps other nontrivial behaviors such as
@@ -95,6 +95,20 @@ abstract class Storage(Component): IStorage
 				".onComponentRemoved does not match the expected signature " ~
 				"(`void onComponentRemoved(Universe, EntityID)`) and will not be called"
 			);
+	}
+	
+	/++
+		Invalidates all `ecsd.cache.ComponentCache`s that cache the associated component. Neglecting
+		to call this method as appropriate $(B will) cause undefined behavior.
+		
+		This method $(B must) be called upon:
+		* a component being added
+		* a component being removed
+		* any other operation that may invalidate cached pointers, such as a `realloc`
+	+/
+	protected void invalidateCaches()
+	{
+		universe.onStorageInvalidated(typeid(Component));
 	}
 	
 	/// Returns whether the associated component type exists on the given entity.
@@ -139,56 +153,71 @@ abstract class Storage(Component): IStorage
 }
 
 /++
-	Runs tests upon the given storage implementation, when building with unittests.
+	Provides a test suite for the given storage implementation.
 	
 	Examples:
 	------
 	final class MyStorage(Component): Storage!Component { /* ... */ }
-	static assert(runStorageTests!MyStorage);
+	mixin storageTests!MyStorage;
 	------
 +/
-version(unittest)
-bool runStorageTests(alias Storage)()
+mixin template storageTests(alias StorageT)
 {
-	import ecsd.universe;
-	
-	static struct Foo
+	unittest
 	{
-		bool added;
-		bool removed;
+		import core.time: MonoTime;
 		
-		void onComponentAdded(Universe, EntityID)
+		import ecsd.universe;
+		import ecsd.storage: NullStorage;
+		
+		enum isNullStorage = __traits(isSame, StorageT, NullStorage);
+		
+		static struct Foo
 		{
-			added = true;
+			static bool added;
+			static bool removed;
+			
+			// prevent universe registering as NullStorage
+			static if(!isNullStorage)
+				int dummy;
+			
+			void onComponentAdded(Universe, EntityID)
+			{
+				added = true;
+			}
+			
+			void onComponentRemoved(Universe, EntityID)
+			{
+				removed = true;
+			}
 		}
 		
-		void onComponentRemoved(Universe, EntityID)
-		{
-			removed = true;
-		}
+		auto uni = allocUniverse;
+		scope(exit) freeUniverse(uni);
+		uni.registerComponent!(Foo, StorageT);
+		auto ent = uni.allocEntity;
+		auto storage = cast(StorageT!Foo)uni.getStorage!Foo;
+		
+		assert(!storage.has(ent));
+		
+		auto time = MonoTime.currTime;
+		assert(time >= uni.getInvalidationTimestamp(typeid(Foo)));
+		
+		auto inst = &storage.add(ent, Foo.init);
+		assert(storage.has(ent));
+		assert(Foo.added);
+		assert(!Foo.removed);
+		assert(time < uni.getInvalidationTimestamp(typeid(Foo)));
+		time = MonoTime.currTime;
+		
+		assert(&storage.get(ent) == inst);
+		
+		storage.remove(ent);
+		assert(!storage.has(ent));
+		assert(Foo.removed);
+		assert(time < uni.getInvalidationTimestamp(typeid(Foo)));
 	}
-	
-	auto uni = new Universe(null);
-	auto ent = uni.allocEntity;
-	auto storage = new Storage!Foo(uni);
-	
-	assert(!storage.has(ent));
-	
-	auto inst = &storage.add(ent, Foo.init);
-	assert(storage.has(ent));
-	assert(inst.added);
-	assert(!inst.removed);
-	
-	assert(&storage.get(ent) == inst);
-	
-	storage.remove(ent);
-	assert(!storage.has(ent));
-	assert(inst.removed);
-	
-	return true;
 }
-else
-bool runStorageTests(alias Storage)() { return true; }
 
 /++
 	Storage implementation backed by a plain array, indexed by entity id.
@@ -218,6 +247,7 @@ final class FlatStorage(Component): Storage!Component
 		pair.serial = ent.serial;
 		pair.instance = inst;
 		runAddHooks(ent, &pair.instance);
+		invalidateCaches();
 		return pair.instance;
 	}
 	
@@ -225,6 +255,7 @@ final class FlatStorage(Component): Storage!Component
 	{
 		auto ptr = &storage[ent.id];
 		runRemoveHooks(ent, &ptr.instance);
+		invalidateCaches();
 		ptr.serial = EntityID.Serial.max;
 	}
 	
@@ -233,7 +264,7 @@ final class FlatStorage(Component): Storage!Component
 		return storage[ent.id].instance;
 	}
 }
-static assert(runStorageTests!FlatStorage);
+mixin storageTests!FlatStorage;
 
 /++
 	Storage implementation backed by a hashmap.
@@ -267,6 +298,7 @@ final class HashStorage(Component): Storage!Component
 		pair.serial = ent.serial;
 		pair.instance = inst;
 		runAddHooks(ent, &pair.instance);
+		invalidateCaches();
 		return pair.instance;
 	}
 	
@@ -274,6 +306,7 @@ final class HashStorage(Component): Storage!Component
 	{
 		auto pair = ent.id in storage;
 		runRemoveHooks(ent, &pair.instance);
+		invalidateCaches();
 		pair.serial = EntityID.Serial.max;
 	}
 	
@@ -282,7 +315,7 @@ final class HashStorage(Component): Storage!Component
 		return storage[ent.id].instance;
 	}
 }
-static assert(runStorageTests!HashStorage);
+mixin storageTests!HashStorage;
 
 /++
 	Storage implementation backed by a bit array, optimizing for empty components
@@ -314,6 +347,7 @@ final class NullStorage(Component): Storage!Component
 			storage.length = ent.id + 1;
 		storage[ent.id] = true;
 		runAddHooks(ent, &dummyInstance);
+		invalidateCaches();
 		return dummyInstance;
 	}
 	
@@ -321,6 +355,7 @@ final class NullStorage(Component): Storage!Component
 	{
 		storage[ent.id] = false;
 		runRemoveHooks(ent, &dummyInstance);
+		invalidateCaches();
 	}
 	
 	override ref Component get(EntityID ent)
@@ -328,41 +363,4 @@ final class NullStorage(Component): Storage!Component
 		return dummyInstance;
 	}
 }
-
-// rewriting `runStorageTests` to accommodate `NullStorage` is not CTFE friendly :(
-unittest
-{
-	import ecsd.universe;
-	
-	static struct Foo
-	{
-		static bool added;
-		static bool removed;
-		
-		void onComponentAdded(Universe, EntityID)
-		{
-			added = true;
-		}
-		
-		void onComponentRemoved(Universe, EntityID)
-		{
-			removed = true;
-		}
-	}
-	
-	auto uni = allocUniverse;
-	scope(exit) freeUniverse(uni);
-	auto ent = uni.allocEntity;
-	auto storage = new NullStorage!Foo(uni);
-	
-	assert(!storage.has(ent));
-	
-	storage.add(ent, Foo.init);
-	assert(storage.has(ent));
-	assert(Foo.added);
-	assert(!Foo.removed);
-	
-	storage.remove(ent);
-	assert(!storage.has(ent));
-	assert(Foo.removed);
-}
+mixin storageTests!NullStorage;
