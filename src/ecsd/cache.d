@@ -11,6 +11,7 @@ import std.traits;
 import std.typecons;
 
 import ecsd.entity;
+import ecsd.storage;
 import ecsd.universe;
 
 /// Controls whether `ComponentCache.refresh` ignores timestamps.
@@ -47,8 +48,11 @@ alias ForceRefresh = Flag!"ForceRefresh";
 	}
 	------
 +/
-class ComponentCache(Components...)
+class ComponentCache(Raw...)
 {
+	private alias nullable = staticMap!(isPointer, Raw);
+	private alias Components = staticMap!(targetOf, Raw);
+	
 	/++
 		A set of pointers to each of the given component types, for a single entity.
 		
@@ -57,21 +61,24 @@ class ComponentCache(Components...)
 	+/
 	static struct Set
 	{
-		static foreach(i, Ptr; staticMap!(pointerOf, Components))
-			mixin("Ptr ", componentIdentifier!(targetOf!(Components[i])), ";");
+		static foreach(i, Ptr; staticMap!(pointerOf, Raw))
+			mixin("Ptr ", componentIdentifier!(Components[i]), ";");
 		EntityID id; // The id of the entity which owns these components.
 		alias id this;
 	}
 	
-	private alias nullable = staticMap!(isPointer, Components);
 	private Universe universe;
 	private Appender!(Set[]) _entities;
 	private MonoTime lastRefreshed = MonoTime.zero;
+	private staticMap!(Storage, Components) storages;
 	
 	/// Constructor. Entities will be queried from the given universe.
 	this(Universe uni)
 	{
 		universe = uni;
+		
+		static foreach(i, T; Components)
+			storages[i] = uni.getStorage!T;
 	}
 	
 	/// Returns whether this cache is outdated, and needs to be `refresh`ed.
@@ -80,7 +87,7 @@ class ComponentCache(Components...)
 		if(universe.lastAnyInvalidated < lastRefreshed)
 			return false;
 		
-		static auto types = typeids!(staticMap!(targetOf, Components));
+		static auto types = typeids!Components;
 		return types
 			.map!(ti => universe.getInvalidationTimestamp(ti) >= lastRefreshed)
 			.any
@@ -103,11 +110,10 @@ class ComponentCache(Components...)
 		{
 			Set set;
 			set.id = ent.id;
-			static foreach(i, T; Components)
+			static foreach(i; 0 .. storages.length)
 			{{
-				alias Component = targetOf!T;
-				if(ent.has!Component)
-					set.tupleof[i] = &ent.get!Component();
+				if(storages[i].has(ent))
+					set.tupleof[i] = &storages[i].get(ent);
 				else static if(!nullable[i])
 					continue outer;
 			}}
@@ -136,7 +142,7 @@ class ComponentCache(Components...)
 		$(B Note:) for each $(I required) component the loop variable must be taken by ref, otherwise
 		any component mutations will be upon a copy within the loop.
 	+/
-	int opApply(scope componentsDelegate!(int, Components) dg)
+	int opApply(scope componentsDelegate!(int, Raw) dg)
 	{
 		enum string derefs = componentDerefs!(typeof(this));
 		foreach(set; entities)
