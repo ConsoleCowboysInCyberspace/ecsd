@@ -17,6 +17,9 @@ import ecsd.universe;
 /// Controls whether `ComponentCache.refresh` ignores timestamps.
 alias ForceRefresh = Flag!"ForceRefresh";
 
+/// Return value of `ComponentCache.refresh`.
+alias DidRefresh = Flag!"DidRefresh";
+
 /++
 	A cache of entities which have all (or some) of the given components, and pointers to those
 	components.
@@ -112,11 +115,14 @@ class ComponentCache(Raw...)
 		Refreshes list of entities and component pointers in this cache.
 		
 		This method $(B must) be called (every iteration of the game loop) before using the cache.
+		
+		Returns: whether a refresh was actually performed. This can be used in user code to elide
+		work that needs to happen when the cache is invalidated, e.g. sorting `entities`.
 	+/
-	void refresh(ForceRefresh forceRefresh = ForceRefresh.no)
+	DidRefresh refresh(ForceRefresh forceRefresh = ForceRefresh.no)
 	{
 		if(forceRefresh != ForceRefresh.yes && !stale)
-			return;
+			return DidRefresh.no;
 		lastRefreshed = MonoTime.currTime;
 		
 		_entities.clear;
@@ -133,6 +139,8 @@ class ComponentCache(Raw...)
 			}}
 			_entities.put(set);
 		}
+		
+		return DidRefresh.yes;
 	}
 	
 	/// Returns all currently cached `Set`s of pointers.
@@ -206,8 +214,10 @@ unittest
 	
 	auto e3 = Entity(uni.allocEntity, uni);
 	assert(!cache1.stale);
+	assert(cache1.refresh == DidRefresh.no);
 	e3.add!C1;
 	assert(cache1.stale);
+	assert(cache1.refresh == DidRefresh.yes);
 	e3.free;
 	
 	auto cache2 = new ComponentCache!C2(uni);
