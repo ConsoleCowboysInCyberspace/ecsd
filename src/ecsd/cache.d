@@ -53,6 +53,20 @@ class ComponentCache(Raw...)
 	private alias nullable = staticMap!(isPointer, Raw);
 	private alias Components = staticMap!(targetOf, Raw);
 	
+	static assert(
+		is(Components == NoDuplicates!Components),
+		"Types in a ComponentCache must not be duplicated"
+	);
+	static assert(
+		is(Components == staticMap!(targetOf, Components)),
+		"Types in a ComponentCache must not contain pointers to pointers"
+	);
+	static assert(
+		is(Components == staticMap!(Unqual, Components)),
+		"Types in a ComponentCache must not have qualifiers"
+	);
+	static assert(allSatisfy!(isComponent, Components)); // error given by isComponent
+	
 	/++
 		A set of pointers to each of the given component types, for a single entity.
 		
@@ -178,6 +192,13 @@ unittest
 		.array
 		.sort!idSort
 	;
+	
+	struct Invalid { ~this() {} }
+	static assert(!__traits(compiles, { ComponentCache!int x; }));
+	static assert(!__traits(compiles, { ComponentCache!Invalid x; }));
+	static assert(!__traits(compiles, { ComponentCache!(C1, C1) x; }));
+	static assert(!__traits(compiles, { ComponentCache!(const C1) x; }));
+	static assert(!__traits(compiles, { ComponentCache!(C1**) x; }));
 	
 	auto cache1 = new ComponentCache!C1(uni);
 	cache1.refresh;

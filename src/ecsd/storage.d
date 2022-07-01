@@ -3,7 +3,7 @@ module ecsd.storage;
 
 import ecsd.entity: EntityID;
 
-package bool isComponent(T)()
+package template isComponent(T)
 {
 	enum errPreamble = "Component type " ~ T.stringof ~ " must ";
 	static assert(
@@ -23,7 +23,7 @@ package bool isComponent(T)()
 		errPreamble ~ "be reassignable"
 	);
 	
-	return true;
+	enum isComponent = true;
 }
 
 package interface IStorage {}
