@@ -73,7 +73,7 @@ mixin template registerSubscribers(string _targetModule = __MODULE__)
 		import std.meta;
 		import ecsd.event.pubsub;
 		
-		alias mod = mixin(_targetModule);
+		mixin("import mod = ", _targetModule, ";");
 		static foreach(symbol; getSymbolsByUDA!(mod, EventSubscriber))
 		{{
 			enum symbolName = fullyQualifiedName!symbol;
