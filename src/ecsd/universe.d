@@ -134,11 +134,11 @@ final class Universe
 			if(!destUni.hasComponent!Component) return;
 			
 			auto destStorage = destUni.getStorage!Component;
-			auto srcVal = inst.get(src);
+			auto srcVal = *inst.get(src);
 			if(!destStorage.has(dest))
 				destStorage.add(dest, srcVal);
 			else
-				destStorage.get(dest) = srcVal;
+				*destStorage.get(dest) = srcVal;
 		}
 		
 		StorageVtable vtable = {

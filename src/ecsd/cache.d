@@ -133,7 +133,7 @@ class ComponentCache(Raw...)
 			static foreach(i; 0 .. storages.length)
 			{{
 				if(storages[i].has(ent))
-					set.tupleof[i] = &storages[i].get(ent);
+					set.tupleof[i] = storages[i].get(ent);
 				else static if(!nullable[i])
 					continue outer;
 			}}

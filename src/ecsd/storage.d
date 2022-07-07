@@ -125,7 +125,7 @@ abstract class Storage(Component): IStorage
 		
 		Returns: reference to the stored instance
 	+/
-	abstract ref Component add(EntityID ent, Component inst)
+	abstract Component* add(EntityID ent, Component inst)
 	in(
 		!has(ent),
 		"Attempt to add %s to an entity that already has it".format(
@@ -143,7 +143,7 @@ abstract class Storage(Component): IStorage
 	);
 	
 	/// Returns a reference to the associated component type on the given entity.
-	abstract ref Component get(EntityID ent)
+	abstract Component* get(EntityID ent)
 	in(
 		has(ent),
 		"Attempt to get %s from an entity that does not have it".format(
@@ -203,14 +203,14 @@ mixin template storageTests(alias StorageT)
 		auto time = MonoTime.currTime;
 		assert(time >= uni.getInvalidationTimestamp(typeid(Foo)));
 		
-		auto inst = &storage.add(ent, Foo.init);
+		auto inst = storage.add(ent, Foo.init);
 		assert(storage.has(ent));
 		assert(Foo.added);
 		assert(!Foo.removed);
 		assert(time < uni.getInvalidationTimestamp(typeid(Foo)));
 		time = MonoTime.currTime;
 		
-		assert(&storage.get(ent) == inst);
+		assert(storage.get(ent) == inst);
 		
 		storage.remove(ent);
 		assert(!storage.has(ent));
@@ -238,7 +238,7 @@ final class FlatStorage(Component): Storage!Component
 		return storage.length > ent.id && storage[ent.id].serial == ent.serial;
 	}
 	
-	override ref Component add(EntityID ent, Component inst)
+	override Component* add(EntityID ent, Component inst)
 	{
 		if(storage.length <= ent.id)
 			storage.length = ent.id + 1;
@@ -248,7 +248,7 @@ final class FlatStorage(Component): Storage!Component
 		pair.instance = inst;
 		runAddHooks(ent, &pair.instance);
 		invalidateCaches();
-		return pair.instance;
+		return &pair.instance;
 	}
 	
 	override void remove(EntityID ent)
@@ -259,9 +259,9 @@ final class FlatStorage(Component): Storage!Component
 		ptr.serial = EntityID.Serial.max;
 	}
 	
-	override ref Component get(EntityID ent)
+	override Component* get(EntityID ent)
 	{
-		return storage[ent.id].instance;
+		return &storage[ent.id].instance;
 	}
 }
 mixin storageTests!FlatStorage;
@@ -285,7 +285,7 @@ final class HashStorage(Component): Storage!Component
 		return pair.serial == ent.serial;
 	}
 	
-	override ref Component add(EntityID ent, Component inst)
+	override Component* add(EntityID ent, Component inst)
 	{
 		auto pair = ent.id in storage;
 		if(pair is null)
@@ -299,7 +299,7 @@ final class HashStorage(Component): Storage!Component
 		pair.instance = inst;
 		runAddHooks(ent, &pair.instance);
 		invalidateCaches();
-		return pair.instance;
+		return &pair.instance;
 	}
 	
 	override void remove(EntityID ent)
@@ -310,9 +310,9 @@ final class HashStorage(Component): Storage!Component
 		pair.serial = EntityID.Serial.max;
 	}
 	
-	override ref Component get(EntityID ent)
+	override Component* get(EntityID ent)
 	{
-		return storage[ent.id].instance;
+		return &storage[ent.id].instance;
 	}
 }
 mixin storageTests!HashStorage;
@@ -341,14 +341,14 @@ final class NullStorage(Component): Storage!Component
 		return storage.length > ent.id && storage[ent.id];
 	}
 	
-	override ref Component add(EntityID ent, Component inst)
+	override Component* add(EntityID ent, Component inst)
 	{
 		if(storage.length <= ent.id)
 			storage.length = ent.id + 1;
 		storage[ent.id] = true;
 		runAddHooks(ent, &dummyInstance);
 		invalidateCaches();
-		return dummyInstance;
+		return &dummyInstance;
 	}
 	
 	override void remove(EntityID ent)
@@ -358,9 +358,9 @@ final class NullStorage(Component): Storage!Component
 		invalidateCaches();
 	}
 	
-	override ref Component get(EntityID ent)
+	override Component* get(EntityID ent)
 	{
-		return dummyInstance;
+		return &dummyInstance;
 	}
 }
 mixin storageTests!NullStorage;

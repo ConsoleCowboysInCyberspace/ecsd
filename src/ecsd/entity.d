@@ -107,7 +107,7 @@ struct Entity
 		
 		Returns: reference to the newly allocated component.
 	+/
-	ref Component add(Component)(Component inst = Component.init)
+	Component* add(Component)(Component inst = Component.init)
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.add(_id, inst);
@@ -121,7 +121,7 @@ struct Entity
 	}
 	
 	/// Returns a reference to this entity's instance of the given component type.
-	ref Component get(Component)()
+	Component* get(Component)()
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.get(_id);
