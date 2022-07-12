@@ -56,7 +56,7 @@ struct PubSub
 	if(isEvent!Event)
 	{
 		auto ent = Entity(owningEnt);
-		foreach(handler; handlers[typeid(Event)])
+		foreach(handler; handlers.get(typeid(Event), null))
 			handler.reconstruct!Event()(ent, ev);
 	}
 	
@@ -146,4 +146,7 @@ unittest
 	pubsub.publish!Foo;
 	assert(calledf1);
 	assert(calledf2);
+	
+	static struct UnusedEvent {}
+	pubsub.publish!UnusedEvent;
 }
