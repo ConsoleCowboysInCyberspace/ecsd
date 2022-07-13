@@ -234,11 +234,13 @@ final class FlatStorage(Component): Storage!Component
 	this(Universe uni) { super(uni); }
 	
 	override bool has(EntityID ent)
+	in(false)
 	{
 		return storage.length > ent.id && storage[ent.id].serial == ent.serial;
 	}
 	
 	override Component* add(EntityID ent, Component inst)
+	in(false)
 	{
 		if(storage.length <= ent.id)
 			storage.length = ent.id + 1;
@@ -252,6 +254,7 @@ final class FlatStorage(Component): Storage!Component
 	}
 	
 	override void remove(EntityID ent)
+	in(false)
 	{
 		auto ptr = &storage[ent.id];
 		runRemoveHooks(ent, &ptr.instance);
@@ -260,6 +263,7 @@ final class FlatStorage(Component): Storage!Component
 	}
 	
 	override Component* get(EntityID ent)
+	in(false)
 	{
 		return &storage[ent.id].instance;
 	}
@@ -279,6 +283,7 @@ final class HashStorage(Component): Storage!Component
 	this(Universe uni) { super(uni); }
 	
 	override bool has(EntityID ent)
+	in(false)
 	{
 		auto pair = ent.id in storage;
 		if(pair is null) return false;
@@ -286,6 +291,7 @@ final class HashStorage(Component): Storage!Component
 	}
 	
 	override Component* add(EntityID ent, Component inst)
+	in(false)
 	{
 		auto pair = ent.id in storage;
 		if(pair is null)
@@ -303,6 +309,7 @@ final class HashStorage(Component): Storage!Component
 	}
 	
 	override void remove(EntityID ent)
+	in(false)
 	{
 		auto pair = ent.id in storage;
 		runRemoveHooks(ent, &pair.instance);
@@ -311,6 +318,7 @@ final class HashStorage(Component): Storage!Component
 	}
 	
 	override Component* get(EntityID ent)
+	in(false)
 	{
 		return &storage[ent.id].instance;
 	}
@@ -337,11 +345,13 @@ final class NullStorage(Component): Storage!Component
 	this(Universe uni) { super(uni); }
 	
 	override bool has(EntityID ent)
+	in(false)
 	{
 		return storage.length > ent.id && storage[ent.id];
 	}
 	
 	override Component* add(EntityID ent, Component inst)
+	in(false)
 	{
 		if(storage.length <= ent.id)
 			storage.length = ent.id + 1;
@@ -352,6 +362,7 @@ final class NullStorage(Component): Storage!Component
 	}
 	
 	override void remove(EntityID ent)
+	in(false)
 	{
 		storage[ent.id] = false;
 		runRemoveHooks(ent, &dummyInstance);
@@ -359,6 +370,7 @@ final class NullStorage(Component): Storage!Component
 	}
 	
 	override Component* get(EntityID ent)
+	in(false)
 	{
 		return &dummyInstance;
 	}
