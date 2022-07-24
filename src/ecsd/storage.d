@@ -111,7 +111,7 @@ abstract class Storage(Component): IStorage
 		universe.onStorageInvalidated(typeid(Component));
 	}
 	
-	/// Returns whether the associated component type exists on the given entity.
+	/// Returns whether the associated component exists on the given entity.
 	abstract bool has(EntityID ent)
 	in(
 		universe.ownsEntity(ent),
@@ -133,7 +133,7 @@ abstract class Storage(Component): IStorage
 		)
 	);
 	
-	/// Removes the associated component type from the given entity.
+	/// Removes the associated component from the given entity.
 	abstract void remove(EntityID ent)
 	in(
 		has(ent),
@@ -143,8 +143,10 @@ abstract class Storage(Component): IStorage
 	);
 	
 	/++
-		Returns a pointer to the associated component type on the given entity. The pointer is
-		guaranteed to not be null.
+		Returns a pointer to the associated component on the given entity.
+		
+		It is an error to call this with an entity that does not have any such component, therefore
+		the pointer is guaranteed to not be null.
 	+/
 	abstract Component* get(EntityID ent)
 	in(
@@ -155,10 +157,10 @@ abstract class Storage(Component): IStorage
 	);
 	
 	/++
-		Returns a pointer to the associated component type on the given entity. Unlike `get`, this
-		will return null if the component does not exist.
+		Returns a pointer to the associated component on the given entity. Unlike `get`, this will
+		return null if the component does not exist.
 		
-		Storage implementations should override this with a more efficient strategy, if possible.
+		Storage implementations should override this with a more efficient strategy where possible.
 	+/
 	Component* tryGet(EntityID ent)
 	in(

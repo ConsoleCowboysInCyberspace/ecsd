@@ -89,13 +89,19 @@ struct Entity
 		return _uni;
 	}
 	
-	/// Checks whether this entity is still alive in its owning universe.
+	/++
+		Returns whether this entity is still alive.
+	+/
 	bool valid() const
 	{
 		return _uni !is null && _uni.isEntityAlive(_id);
 	}
 	
-	/// Returns whether this entity has the given component type.
+	/++
+		Returns whether this entity has `Component`.
+		
+		Shortcut for `ecsd.storage.Storage.has`.
+	+/
 	bool has(Component)() const
 	in(valid, invalidMessage)
 	{
@@ -103,9 +109,11 @@ struct Entity
 	}
 	
 	/++
-		Adds a component of the given type to this entity, optionally passing an instance to copy from.
+		Attaches `Component` to this entity, copied from the provided instance if any.
 		
-		Returns: reference to the newly allocated component.
+		Shortcut for `ecsd.storage.Storage.add`.
+		
+		Returns: pointer to the newly allocated `Component`.
 	+/
 	Component* add(Component)(Component inst = Component.init)
 	in(valid, invalidMessage)
@@ -113,14 +121,22 @@ struct Entity
 		return _uni.getStorage!Component.add(_id, inst);
 	}
 	
-	/// Removes component of the given type from this entity.
+	/++
+		Removes `Component` from this entity.
+		
+		Shortcut for `ecsd.storage.Storage.remove`.
+	+/
 	void remove(Component)()
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.remove(_id);
 	}
 	
-	/// Returns a (never null) pointer to this entity's instance of `Component`.
+	/++
+		Returns a (never null) pointer to this entity's instance of `Component`.
+		
+		Shortcut for `ecsd.storage.Storage.get`.
+	+/
 	Component* get(Component)()
 	in(valid, invalidMessage)
 	{
@@ -129,7 +145,9 @@ struct Entity
 	
 	/++
 		Like `get`, returns a pointer to this entity's `Component`. Unlike `get`, when this entity
-		has no such component a null will be returned.
+		has no such component a null pointer will be returned.
+		
+		Shortcut for `ecsd.storage.Storage.tryGet`.
 	+/
 	Component* tryGet(Component)()
 	in(valid, invalidMessage)
@@ -137,7 +155,11 @@ struct Entity
 		return _uni.getStorage!Component.tryGet(_id);
 	}
 	
-	/// Frees this entity in its owning universe. Shortcut for `Universe.freeEntity`.
+	/++
+		Frees this entity in its owning universe.
+		
+		Shortcut for `Universe.freeEntity`.
+	+/
 	void free()
 	in(valid, invalidMessage)
 	out(; !valid)
