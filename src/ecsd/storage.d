@@ -123,7 +123,7 @@ abstract class Storage(Component): IStorage
 	/++
 		Attaches the provided component instance to the given entity.
 		
-		Returns: reference to the stored instance
+		Returns: pointer to the stored instance
 	+/
 	abstract Component* add(EntityID ent, Component inst)
 	in(
@@ -142,7 +142,10 @@ abstract class Storage(Component): IStorage
 		)
 	);
 	
-	/// Returns a reference to the associated component type on the given entity.
+	/++
+		Returns a pointer to the associated component type on the given entity. The pointer is
+		guaranteed to not be null.
+	+/
 	abstract Component* get(EntityID ent)
 	in(
 		has(ent),
@@ -150,6 +153,25 @@ abstract class Storage(Component): IStorage
 			componentName,
 		)
 	);
+	
+	/++
+		Returns a pointer to the associated component type on the given entity. Unlike `get`, this
+		will return null if the component does not exist.
+		
+		Storage implementations should override this with a more efficient strategy, if possible.
+	+/
+	Component* tryGet(EntityID ent)
+	in(
+		universe.ownsEntity(ent),
+		"Entity passed to %s storage which belongs to different universe".format(
+			componentName,
+		)
+	)
+	{
+		if(has(ent))
+			return get(ent);
+		return null;
+	}
 }
 
 /++
@@ -199,6 +221,7 @@ mixin template storageTests(alias StorageT)
 		auto storage = cast(StorageT!Foo)uni.getStorage!Foo;
 		
 		assert(!storage.has(ent));
+		assert(storage.tryGet(ent) == null);
 		
 		auto time = MonoTime.currTime;
 		assert(time >= uni.getInvalidationTimestamp(typeid(Foo)));
@@ -211,6 +234,7 @@ mixin template storageTests(alias StorageT)
 		time = MonoTime.currTime;
 		
 		assert(storage.get(ent) == inst);
+		assert(storage.tryGet(ent) == inst);
 		
 		storage.remove(ent);
 		assert(!storage.has(ent));
@@ -321,6 +345,15 @@ final class HashStorage(Component): Storage!Component
 	in(false)
 	{
 		return &storage[ent.id].instance;
+	}
+	
+	override Component* tryGet(EntityID ent)
+	in(false)
+	{
+		auto pair = ent.id in storage;
+		if(pair is null || pair.serial != ent.serial)
+			return null;
+		return &pair.instance;
 	}
 }
 mixin storageTests!HashStorage;

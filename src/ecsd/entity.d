@@ -120,11 +120,21 @@ struct Entity
 		return _uni.getStorage!Component.remove(_id);
 	}
 	
-	/// Returns a reference to this entity's instance of the given component type.
+	/// Returns a (never null) pointer to this entity's instance of `Component`.
 	Component* get(Component)()
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.get(_id);
+	}
+	
+	/++
+		Like `get`, returns a pointer to this entity's `Component`. Unlike `get`, when this entity
+		has no such component a null will be returned.
+	+/
+	Component* tryGet(Component)()
+	in(valid, invalidMessage)
+	{
+		return _uni.getStorage!Component.tryGet(_id);
 	}
 	
 	/// Frees this entity in its owning universe. Shortcut for `Universe.freeEntity`.
