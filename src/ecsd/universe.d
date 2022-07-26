@@ -255,7 +255,7 @@ final class Universe
 	}
 	
 	/// Returns a slice of `ecsd.entity.EntityID`s which are currently alive in this universe.
-	EntityID[] activeEntities()
+	inout(EntityID)[] activeEntities() inout
 	{
 		return usedEnts[];
 	}

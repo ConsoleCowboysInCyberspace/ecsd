@@ -77,14 +77,14 @@ struct Entity
 	}
 	
 	/// Returns the raw `EntityID`.
-	EntityID id()
+	inout(EntityID) id() inout
 	{
 		return _id;
 	}
 	alias id this;
 	
 	/// Returns owning `ecsd.universe.Universe`.
-	Universe universe()
+	inout(Universe) universe() inout
 	{
 		return _uni;
 	}
@@ -137,7 +137,7 @@ struct Entity
 		
 		Shortcut for `ecsd.storage.Storage.get`.
 	+/
-	Component* get(Component)()
+	Component* get(Component)() inout
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.get(_id);
@@ -149,7 +149,7 @@ struct Entity
 		
 		Shortcut for `ecsd.storage.Storage.tryGet`.
 	+/
-	Component* tryGet(Component)()
+	Component* tryGet(Component)() inout
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.tryGet(_id);

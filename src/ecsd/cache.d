@@ -144,7 +144,7 @@ class ComponentCache(Raw...)
 	}
 	
 	/// Returns all currently cached `Set`s of pointers.
-	Set[] entities()
+	inout(Set[]) entities() inout
 	{
 		return _entities.data[];
 	}
