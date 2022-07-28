@@ -52,10 +52,6 @@ struct Entity
 	private EntityID _id;
 	private Universe _uni;
 	
-	invariant(_id.uid == _uni.id);
-	
-	@disable this();
-	
 	/// Wrap an `EntityID`. If unspecified, will find the owning `ecsd.universe.Universe` from the given id.
 	this(EntityID id)
 	{
@@ -70,7 +66,7 @@ struct Entity
 		_uni = uni;
 	}
 	
-	/// Returns whether entity is valid. Allows use in `if(T x = ...)` expresions.
+	/// Returns whether entity is `valid`.
 	bool opCast(T: bool)() const
 	{
 		return valid;
@@ -90,7 +86,8 @@ struct Entity
 	}
 	
 	/++
-		Returns whether this entity is still alive.
+		Returns whether this handle is valid, i.e. it is not default-constructed and the wrapped
+		entity is alive.
 	+/
 	bool valid() const
 	{
