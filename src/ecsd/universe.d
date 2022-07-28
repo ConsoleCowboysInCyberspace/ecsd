@@ -5,6 +5,7 @@ import core.time;
 import std.algorithm;
 import std.exception;
 import std.range;
+import std.traits;
 
 import ecsd.entity;
 
@@ -92,7 +93,7 @@ final class Universe
 			StorageTpl = `ecsd.storage.Storage` implementation to use for this component
 	+/
 	void registerComponent(Component, alias StorageTpl = HashStorage)()
-	in(!hasComponent!Component)
+	in(!hasComponent!Component, "Component " ~ fullyQualifiedName!Component ~ " has already been registered to universe")
 	{
 		static assert(isComponent!Component);
 		
@@ -157,7 +158,7 @@ final class Universe
 		Any entities with the component will have it implicitly removed.
 	+/
 	void deregisterComponent(Component)()
-	in(hasComponent!Component)
+	in(hasComponent!Component, "Component " ~ fullyQualifiedName!Component ~ " has not been registered to universe")
 	{
 		// FIXME: should probably call remove for all ents
 		// components' remove hooks may manage resources
@@ -169,7 +170,7 @@ final class Universe
 		given type.
 	+/
 	Storage!Component getStorage(Component)() inout
-	in(hasComponent!Component)
+	in(hasComponent!Component, "Component " ~ fullyQualifiedName!Component ~ " has not been registered to universe")
 	{
 		return cast(typeof(return))storages[typeid(Component)].inst;
 	}
@@ -201,7 +202,7 @@ final class Universe
 	
 	/// Returns whether the given entity is currently alive.
 	bool isEntityAlive(EntityID ent) const
-	in(ownsEntity(ent))
+	in(ownsEntity(ent), "Attempt to use entity with universe that does not own it")
 	{
 		// FIXME: there needs to be a distinction between entities that are alive,
 		// and those that have merely been allocated
@@ -230,7 +231,7 @@ final class Universe
 	
 	/// Destroys the given entity.
 	void freeEntity(EntityID ent)
-	in(ownsEntity(ent) && isEntityAlive(ent))
+	in(ownsEntity(ent) && isEntityAlive(ent), "Attempt to free entity that has already been freed")
 	{
 		const index = usedEnts.countUntil(ent);
 		assert(index != -1);
@@ -284,7 +285,7 @@ final class Universe
 		Returns: destination entity ID
 	+/
 	EntityID copyEntity(EntityID source, EntityID destination)
-	in(ownsEntity(source) && isEntityAlive(source))
+	in(ownsEntity(source) && isEntityAlive(source), "Attempt to copy dead entity / entity from another universe")
 	{
 		foreach(vtable; storages.byValue)
 			vtable.copy(source, destination);
@@ -293,7 +294,7 @@ final class Universe
 
 	/// ditto
 	EntityID copyEntity(EntityID source)
-	in(ownsEntity(source) && isEntityAlive(source))
+	in(ownsEntity(source) && isEntityAlive(source), "Attempt to copy dead entity / entity from another universe")
 	{
 		return copyEntity(source, allocEntity);
 	}
