@@ -7,6 +7,7 @@ import std.functional: toDelegate;
 import ecsd.entity: EntityID, Entity;
 import ecsd.event: isEvent;
 import ecsd.universe;
+import globalPubsub = ecsd.event.pubsub;
 
 /++
 	A component implementing an entity->entity event model similar to `ecsd.event.pubsub`.
@@ -86,6 +87,7 @@ struct PubSub
 		auto ent = Entity(owningEnt);
 		foreach(handler; handlers.get(typeid(Event), null))
 			handler.reconstruct!Event()(ent, ev);
+		globalPubsub.publish(EntityEvent!Event(ent, ev));
 	}
 	
 	/// ditto
@@ -94,6 +96,18 @@ struct PubSub
 	{
 		publish(Event.init);
 	}
+}
+
+/++
+	A `ecsd.event.pubsub` event published by all `PubSub` components after an entity event has been
+	published, allowing subscription to events on every entity.
++/
+struct EntityEvent(Event)
+if(isEvent!Event)
+{
+	Entity entity; /// The entity `event` was published to.
+	Event event; /// The event that was published.
+	alias event this; ///
 }
 
 private struct EventHandler
@@ -132,7 +146,7 @@ unittest
 	scope(exit) freeUniverse(uni);
 	auto targetEntity = uni.allocEntity;
 	
-	bool calledf1, calledf2;
+	bool calledf1, calledf2, calledf3;
 	void f1(Entity ent, ref Foo)
 	{
 		assert(ent.id == targetEntity);
@@ -149,32 +163,41 @@ unittest
 		assert(ev.x == -1 || ev.x == 1);
 		ev.x = 2;
 	}
+	void f3(ref EntityEvent!Foo ev)
+	{
+		assert(ev.entity.id == targetEntity);
+		assert(!calledf3);
+		calledf3 = true;
+	}
 	
 	PubSub pubsub;
 	pubsub.onComponentAdded(uni, targetEntity);
 	auto ptrF1 = pubsub.subscribe(&f1);
 	auto ptrF2 = pubsub.subscribe(&f2, 1);
+	globalPubsub.subscribe(&f3);
 	
 	static struct Bar {}
-	static void f3(Entity, ref Bar) { assert(false); }
-	pubsub.subscribe(&f3);
+	static void f4(Entity, ref Bar) { assert(false); }
+	pubsub.subscribe(&f4);
 	
 	Foo ev = { 1 };
 	pubsub.publish(ev);
 	assert(calledf1);
 	assert(calledf2);
+	assert(calledf3);
 	assert(ev.x == 2);
 	
 	static assert(__traits(compiles, { pubsub.publish(Foo()); }));
 	static assert(__traits(compiles, { pubsub.publish!Foo; }));
 	
-	calledf1 = calledf2 = false;
+	calledf1 = calledf2 = calledf3 = false;
 	ev.x = 1;
 	pubsub.unsubscribe(ptrF1);
 	pubsub.unsubscribe(ptrF2);
 	pubsub.publish(ev);
 	assert(!calledf1);
 	assert(!calledf2);
+	assert(calledf3);
 	assert(ev.x == 1);
 	
 	static struct UnusedEvent {}
