@@ -86,8 +86,8 @@ struct EventSubscriber
 }
 
 /++
-	Generates a module constructor that will automatically subscribe all top-level functions (in
-	that module) marked with `EventSubscriber`.
+	Generates a module constructor (and destructor) that will automatically subscribe (and later
+	unsubscribe) all top-level functions in the module marked with `EventSubscriber`.
 	
 	Examples:
 	---
@@ -102,6 +102,7 @@ struct EventSubscriber
 +/
 mixin template registerSubscribers(string _targetModule = __MODULE__)
 {
+	void delegate()[] _ecsd_registerSubscribers_unsubHooks;
 	static this()
 	{
 		import std.traits;
@@ -126,8 +127,16 @@ mixin template registerSubscribers(string _targetModule = __MODULE__)
 			EventSubscriber inst;
 			static if(!is(attrs[0]))
 				inst = attrs[0];
-			subscribe(&symbol, inst.priority);
+			auto fn = subscribe(&symbol, inst.priority);
+			_ecsd_registerSubscribers_unsubHooks ~= { unsubscribe(fn); };
 		}}
+	}
+	
+	static ~this()
+	{
+		foreach(fn; _ecsd_registerSubscribers_unsubHooks)
+			fn();
+		_ecsd_registerSubscribers_unsubHooks.length = 0;
 	}
 }
 
