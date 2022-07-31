@@ -1,6 +1,9 @@
 ///
 module ecsd.event.pubsub;
 
+import std.algorithm;
+import std.functional: toDelegate;
+
 import ecsd.event: isEvent;
 
 /++
@@ -13,7 +16,6 @@ import ecsd.event: isEvent;
 void subscribe(Event)(void delegate(ref Event) fn, int priority = 0)
 if(isEvent!Event)
 {
-	import std.algorithm: sort;
 	alias evs = storage!Event;
 	evs ~= EventHandler!Event(fn, priority);
 	evs.sort!"a.priority > b.priority";
@@ -23,8 +25,27 @@ if(isEvent!Event)
 void subscribe(Event)(void function(ref Event) fn, int priority = 0)
 if(isEvent!Event)
 {
-	import std.functional: toDelegate;
 	subscribe(fn.toDelegate, priority);
+}
+
+/++
+	Removes the given function from the list of subscribers. Does nothing if the given
+	function/delegate has already been unsubscribed, or hadn't been subscribed at all.
++/
+void unsubscribe(Event)(void delegate(ref Event) fn)
+if(isEvent!Event)
+{
+	alias evs = storage!Event;
+	size_t index = evs.countUntil!(eh => eh.fn == fn);
+	if(index == -1) return;
+	evs = evs.remove(index);
+}
+
+/// ditto
+void unsubscribe(Event)(void function(ref Event) fn)
+if(isEvent!Event)
+{
+	unsubscribe(fn.toDelegate);
 }
 
 /++
@@ -147,22 +168,23 @@ unittest
 	assert(calledf1Toplevel);
 	assert(calledf2Toplevel);
 	assert(ev.x == 2);
+	
+	static assert(__traits(compiles, { publish(TestEvent()); }));
+	static assert(__traits(compiles, { publish!TestEvent; }));
+	
 	calledf1 = calledf2 = false;
 	calledf1Toplevel = calledf2Toplevel = false;
-	
-	publish(TestEvent());
-	assert(calledf1);
-	assert(calledf2);
-	assert(calledf1Toplevel);
-	assert(calledf2Toplevel);
-	calledf1 = calledf2 = false;
-	calledf1Toplevel = calledf2Toplevel = false;
-	
-	publish!TestEvent;
-	assert(calledf1);
-	assert(calledf2);
-	assert(calledf1Toplevel);
-	assert(calledf2Toplevel);
+	ev.x = 1;
+	unsubscribe(&f1);
+	unsubscribe(&f2);
+	unsubscribe(&toplevelF1);
+	unsubscribe(&toplevelF2);
+	publish(ev);
+	assert(!calledf1);
+	assert(!calledf2);
+	assert(!calledf1Toplevel);
+	assert(!calledf2Toplevel);
+	assert(ev.x == 1);
 }
 
 bool calledf1Toplevel, calledf2Toplevel;
