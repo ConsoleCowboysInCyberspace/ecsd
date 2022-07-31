@@ -1,4 +1,4 @@
-DDOX_FLAGS := --module-sort=none --decl-sort=none --file-name-style=lowerCase
+DDOX_FLAGS := --module-sort=none --decl-sort=none --file-name-style=unaltered
 DDOX_FILTER_FLAGS := --in=ecsd --min-protection=Protected --only-documented
 DOCS_JSON = docs.json
 DDOX_ASSETS := $(realpath $(shell dub describe ddox --data-list --data working-directory)/public)
