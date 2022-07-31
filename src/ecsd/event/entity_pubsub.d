@@ -1,6 +1,9 @@
 ///
 module ecsd.event.entity_pubsub;
 
+import std.algorithm;
+import std.functional: toDelegate;
+
 import ecsd.entity: EntityID, Entity;
 import ecsd.event: isEvent;
 import ecsd.universe;
@@ -28,25 +31,50 @@ struct PubSub
 		`publish`ed to this entity.
 		
 		Params:
-			priority = dispatch order of event handlers, descending (larger priorities execute first)
+		priority = dispatch order of event handlers, descending (larger priorities execute first)
+		
+		See_Also: `ecsd.event.pubsub.subscribe` for caveats
 	+/
-	void subscribe(Event)(void delegate(Entity, ref Event) fn, int priority = 0)
+	void delegate(Entity, ref Event) subscribe(Event)(void delegate(Entity, ref Event) fn, int priority = 0)
 	if(isEvent!Event)
 	{
-		import std.algorithm: sort;
 		auto ptr = typeid(Event) in handlers;
 		if(ptr is null)
 			ptr = &(handlers[typeid(Event)] = []);
 		*ptr ~= EventHandler(fn, priority);
 		(*ptr).sort!"a.priority > b.priority";
+		return fn;
 	}
 	
 	/// ditto
-	void subscribe(Event)(void function(Entity, ref Event) fn, int priority = 0)
+	void delegate(Entity, ref Event) subscribe(Event)(void function(Entity, ref Event) fn, int priority = 0)
 	if(isEvent!Event)
 	{
-		import std.functional: toDelegate;
-		subscribe(toDelegate(fn), priority);
+		return subscribe(toDelegate(fn), priority);
+	}
+	
+	/++
+		Removes the given function from the list of subscribers. Does nothing if the given
+		function/delegate has already been unsubscribed, or hadn't been subscribed at all.
+	
+		See_Also: `ecsd.event.pubsub.subscribe` for caveats
+	+/
+	void unsubscribe(Event)(void delegate(Entity, ref Event) fn)
+	if(isEvent!Event)
+	{
+		auto ptr = typeid(Event) in handlers;
+		if(ptr is null) return;
+		auto evs = *ptr;
+		size_t index = evs.countUntil!(eh => eh.context == fn.ptr && eh.function_ == fn.funcptr);
+		if(index == -1) return;
+		*ptr = evs.remove(index);
+	}
+	
+	/// ditto
+	void unsubscribe(Event)(void function(Entity, ref Event) fn)
+	if(isEvent!Event)
+	{
+		unsubscribe(fn.toDelegate);
 	}
 	
 	/++
@@ -124,8 +152,8 @@ unittest
 	
 	PubSub pubsub;
 	pubsub.onComponentAdded(uni, targetEntity);
-	pubsub.subscribe(&f1);
-	pubsub.subscribe(&f2, 1);
+	auto ptrF1 = pubsub.subscribe(&f1);
+	auto ptrF2 = pubsub.subscribe(&f2, 1);
 	
 	static struct Bar {}
 	static void f3(Entity, ref Bar) { assert(false); }
@@ -136,16 +164,18 @@ unittest
 	assert(calledf1);
 	assert(calledf2);
 	assert(ev.x == 2);
-	calledf1 = calledf2 = false;
 	
-	pubsub.publish(Foo());
-	assert(calledf1);
-	assert(calledf2);
-	calledf1 = calledf2 = false;
+	static assert(__traits(compiles, { pubsub.publish(Foo()); }));
+	static assert(__traits(compiles, { pubsub.publish!Foo; }));
 	
-	pubsub.publish!Foo;
-	assert(calledf1);
-	assert(calledf2);
+	calledf1 = calledf2 = false;
+	ev.x = 1;
+	pubsub.unsubscribe(ptrF1);
+	pubsub.unsubscribe(ptrF2);
+	pubsub.publish(ev);
+	assert(!calledf1);
+	assert(!calledf2);
+	assert(ev.x == 1);
 	
 	static struct UnusedEvent {}
 	pubsub.publish!UnusedEvent;
