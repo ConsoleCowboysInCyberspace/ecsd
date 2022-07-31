@@ -1,3 +1,4 @@
+///
 module ecsd.userdata;
 
 import ecsd.entity: EntityID;
