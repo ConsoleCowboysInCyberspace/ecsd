@@ -12,6 +12,11 @@ import ecsd.event: isEvent;
 	
 	Params:
 		priority = dispatch order of event handlers, descending (larger priorities execute first)
+	
+	Bugs:
+	Passing struct methods will lead to dangling pointers and undefined behavior upon `publish`ing,
+	unless such structs have been (stably) heap allocated (e.g. with `new`, or in a dynamic array
+	that is never resized, etc.)
 +/
 void subscribe(Event)(void delegate(ref Event) fn, int priority = 0)
 if(isEvent!Event)
