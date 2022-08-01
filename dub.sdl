@@ -2,6 +2,8 @@ name "ecsd"
 
 targetType "sourceLibrary"
 
+dependency "vibe-d:data" version="~>0.9"
+
 buildType "ddox-json" {
 	buildOptions "syntaxOnly"
 	dflags "-c" "-D" "-X" "-Xfdocs.json"

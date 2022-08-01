@@ -4,8 +4,11 @@ module ecsd.universe;
 import core.time;
 import std.algorithm;
 import std.exception;
+import std.experimental.logger;
 import std.range;
 import std.traits;
+
+import vibe.data.bson;
 
 import ecsd.entity;
 
@@ -30,6 +33,9 @@ final class Universe
 	const EntityID.UID id;
     private bool free;
 	
+	private EntityID[] freeEnts; // set of ents that have been allocated but are unused
+	private EntityID[] usedEnts; // entities actively being used (alive/spawned)
+	
 	private static struct StorageVtable
 	{
 		IStorage inst;
@@ -45,15 +51,24 @@ final class Universe
 		
 		// copy this component (if it exists) onto another entity, potentially in a different universe
 		void delegate(EntityID src, EntityID dest) copy;
+		
+		// serialize this component to BSON
+		Bson delegate(EntityID ent) serialize;
+		
+		// add or overwrite this component with the given BSON representation
+		void delegate(EntityID ent, Bson value) deserialize;
 	}
 	private StorageVtable[TypeInfo] storages;
+	
+	// components' typeinfos, used to elide searching through keyset of `storages` when deserializing
+	private TypeInfo[string] typeInfoForQualName;
+	
+	// key in component BSON recording fully qualified path to component type, for looking up vtables
+	private static immutable typeQualPathKey = "$ecsd_typeQualifiedPath";
 	
 	// max of all storages' lastInvalidated timestamps, allowing caches to skip checking each storage
 	package MonoTime lastAnyInvalidated;
 	
-	private EntityID[] freeEnts; // set of ents that have been allocated but are unused
-	private EntityID[] usedEnts; // entities actively being used (alive/spawned)
-    
     private this()
     {
         assert(uidCounter < EntityID.UID.max);
@@ -111,7 +126,7 @@ final class Universe
 			is(StorageInst: Storage!Component),
 			"Storage type " ~ fullyQualifiedName!StorageT ~ " does not extend Storage!T"
 		);
-		auto inst = new StorageInst(this);
+		auto storage = new StorageInst(this);
 		
 		void register(Universe uni)
 		{
@@ -122,34 +137,61 @@ final class Universe
 		void remove(EntityID eid)
 		in(ownsEntity(eid))
 		{
-			if(inst.has(eid))
-				inst.remove(eid);
+			if(storage.has(eid))
+				storage.remove(eid);
 		}
 		
 		void copy(EntityID src, EntityID dest)
 		in(ownsEntity(src))
 		{
-			if(!inst.has(src)) return;
+			if(!storage.has(src)) return;
 			
 			auto destUni = findUniverse(dest.uid);
 			if(!destUni.hasComponent!Component) return;
 			
 			auto destStorage = destUni.getStorage!Component;
-			auto srcVal = *inst.get(src);
-			if(!destStorage.has(dest))
-				destStorage.add(dest, srcVal);
+			auto srcVal = *storage.get(src);
+			if(auto ptr = destStorage.tryGet(dest))
+				*ptr = srcVal;
 			else
-				*destStorage.get(dest) = srcVal;
+				destStorage.add(dest, srcVal);
+		}
+		
+		Bson serialize(EntityID eid)
+		in(ownsEntity(eid))
+		{
+			auto res = Bson(null);
+			if(auto ptr = storage.tryGet(eid))
+			{
+				res = serializeToBson(*ptr);
+				res[typeQualPathKey] = typeid(Component).name;
+			}
+			return res;
+		}
+		
+		void deserialize(EntityID eid, Bson value)
+		in(ownsEntity(eid))
+		in(!value.tryIndex(typeQualPathKey).isNull)
+		{
+			auto inst = value.deserializeBson!Component;
+			if(auto ptr = storage.tryGet(eid))
+				*ptr = inst;
+			else
+				storage.add(eid, inst);
 		}
 		
 		StorageVtable vtable = {
-			inst,
+			storage,
 			MonoTime.currTime,
 			&register,
 			&remove,
 			&copy,
+			&serialize,
+			&deserialize,
 		};
-		storages[typeid(Component)] = vtable;
+		static auto tid = typeid(Component);
+		storages[tid] = vtable;
+		typeInfoForQualName[tid.name] = tid;
 	}
 	
 	/++
@@ -162,7 +204,9 @@ final class Universe
 	{
 		// FIXME: should probably call remove for all ents
 		// components' remove hooks may manage resources
-		storages.remove(typeid(Component));
+		static auto tid = typeid(Component);
+		storages.remove(tid);
+		typeInfoForQualName.remove(tid.name);
 	}
 	
 	/++
@@ -315,6 +359,86 @@ final class Universe
 		
 		return newUni;
 	}
+	
+	/// Serializes the given entity to a BSON array of objects, one object per attached component.
+	Bson serializeEntity(EntityID ent)
+	{
+		Bson[] result;
+		result.reserve(storages.length);
+		foreach(vtable; storages.byValue)
+		{
+			auto component = vtable.serialize(ent);
+			if(!component.isNull)
+				result ~= component;
+		}
+		return Bson(result);
+	}
+	
+	/++
+		Deserializes a set of components onto a single entity.
+		
+		Params:
+		ent = destination entity
+		components = BSON array of component objects, as returned from `serializeEntity`
+		ignoreMissing = whether to suppress warning messages when trying to serialize components
+		that have not been registered
+	+/
+	void deserializeEntity(EntityID ent, Bson components, bool ignoreMissing = false)
+	in(components.type == Bson.Type.array, "Universe.deserializeEntity expected BSON array")
+	{
+		foreach(component; components)
+		{
+			const typePathBS = component[typeQualPathKey];
+			assert(
+				typePathBS.type == Bson.Type.string,
+				"Malformed component BSON: no/wrong type of typeQualifiedPath key\nComponent's BSON: " ~
+				component.toJson.toPrettyString
+			);
+			const typePath = typePathBS.get!string;
+			
+			auto ptr = typePath in typeInfoForQualName;
+			if(ptr is null)
+			{
+				if(!ignoreMissing)
+					warningf(
+						"Component type `%s` cannot be deserialized, it has not been registered to this universe",
+						typePath
+					);
+				continue;
+			}
+			
+			storages[*ptr].deserialize(ent, component);
+		}
+	}
+	
+	/// Serializes all `activeEntities` in this universe to a BSON array.
+	Bson serialize()
+	{
+		Bson[] result;
+		result.reserve(activeEntities.length);
+		foreach(ent; this)
+			result ~= serializeEntity(ent);
+		return Bson(result);
+	}
+	
+	/++
+		Allocates new entities and populates them with deserialized components.
+		
+		Params:
+		entities = BSON array of arrays, outer arrays corresponding to a single entity, inner arrays
+		containing component objects as returned from `serializeEntity`
+		ignoreMissing = whether to suppress warning messages when trying to serialize components
+		that have not been registered
+	+/
+	void deserialize(Bson entities, bool ignoreMissing = false)
+	in(entities.type == Bson.Type.array, "Universe.deserialize expected BSON array")
+	{
+		foreach(components; entities)
+		{
+			auto ent = allocEntity;
+			deserializeEntity(ent, components, ignoreMissing);
+		}
+	}
 }
 
 unittest
@@ -344,6 +468,55 @@ unittest
 	storage.add(ent, TestComponent.init);
 	auto e2 = uni.copyEntity(ent);
 	assert(storage.has(e2));
+}
+
+unittest
+{
+	auto uni = allocUniverse;
+	scope(exit) freeUniverse(uni);
+	
+	static struct C1
+	{
+		int x;
+	}
+	uni.registerComponent!C1;
+	
+	static struct C2
+	{
+		string x;
+	}
+	uni.registerComponent!C2;
+	
+	static struct C3 {}
+	uni.registerComponent!C3;
+	
+	auto e1 = Entity(uni.allocEntity);
+	e1.add(C1(42));
+	e1.add(C2("foo"));
+	e1.add!C3;
+	
+	auto e2 = Entity(uni.allocEntity);
+	uni.deserializeEntity(e2, uni.serializeEntity(e1));
+	assert(e2.has!C1);
+	assert(*e2.get!C1 == C1(42));
+	assert(e2.has!C2);
+	assert(*e2.get!C2 == C2("foo"));
+	assert(e2.has!C3);
+	
+	auto uni2 = uni.dup;
+	scope(exit) freeUniverse(uni2);
+	uni2.destroyAllEntities;
+	
+	uni2.deserialize(uni.serialize);
+	assert(uni2.activeEntities.length == 2);
+	foreach(ent; uni2)
+	{
+		assert(ent.has!C1);
+		assert(*ent.get!C1 == C1(42));
+		assert(ent.has!C2);
+		assert(*ent.get!C2 == C2("foo"));
+		assert(ent.has!C3);
+	}
 }
 
 private Universe[] universes;
