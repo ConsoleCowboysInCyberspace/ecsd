@@ -26,14 +26,14 @@ final class Universe
 	import ecsd.storage;
 	
 	// global counter for universe IDs
-    private static EntityID.UID uidCounter;
+	private static EntityID.UID uidCounter;
 	
 	// entity ID counter
-    private EntityID.EID eidCounter;
-    
+	private EntityID.EID eidCounter;
+	
 	/// The id of this universe, corresponding to `ecsd.entity.EntityID.uid`.
 	const EntityID.UID id;
-    private bool free;
+	private bool free;
 	
 	private EntityID[] freeEnts; // set of ents that have been allocated but are unused
 	private EntityID[] usedEnts; // entities actively being used (alive/spawned)
@@ -71,12 +71,12 @@ final class Universe
 	// max of all storages' lastInvalidated timestamps, allowing caches to skip checking each storage
 	package MonoTime lastAnyInvalidated;
 	
-    private this()
-    {
-        assert(uidCounter < EntityID.UID.max);
-        id = uidCounter++;
-        free = true;
-    }
+	private this()
+	{
+		assert(uidCounter < EntityID.UID.max);
+		id = uidCounter++;
+		free = true;
+	}
 	
 	// dummy constructor for CTFE tests
 	package this(typeof(null))
@@ -527,23 +527,23 @@ private Universe[] universes;
 /// Allocate a new universe.
 Universe allocUniverse()
 {
-    auto uid = universes.countUntil!(u => u.free);
-    if(uid == -1)
-    {
-        uid = universes.length;
-        if(universes.length > 0)
-            universes.length *= 2;
-       	else
-            universes.length = 4;
+	auto uid = universes.countUntil!(u => u.free);
+	if(uid == -1)
+	{
+		uid = universes.length;
+		if(universes.length > 0)
+			universes.length *= 2;
+		else
+			universes.length = 4;
 		
-        foreach(ref ptr; universes[uid .. $])
-        	ptr = new Universe();
-    }
-    
-    auto res = universes[uid];
-    res.free = false;
+		foreach(ref ptr; universes[uid .. $])
+			ptr = new Universe();
+	}
+	
+	auto res = universes[uid];
+	res.free = false;
 	publish(UniverseAllocated(res));
-    return res;
+	return res;
 }
 
 /// Destroys the given universe, and in turn all its entities.
@@ -551,8 +551,8 @@ void freeUniverse(Universe uni)
 {
 	assert(!uni.free);
 	publish(UniverseFreed(uni));
-    uni.onDestroy();
-    uni.free = true;
+	uni.onDestroy();
+	uni.free = true;
 }
 
 /++
@@ -568,9 +568,9 @@ Universe findUniverse(EntityID.UID uid)
 
 unittest
 {
-    auto uni = allocUniverse;
-    assert(!uni.free);
+	auto uni = allocUniverse;
+	assert(!uni.free);
 	assert(findUniverse(uni.id) is uni);
-    freeUniverse(uni);
-    assert(uni.free);
+	freeUniverse(uni);
+	assert(uni.free);
 }

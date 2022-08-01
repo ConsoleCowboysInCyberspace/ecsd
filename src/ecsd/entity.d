@@ -21,12 +21,12 @@ struct EntityID
 		The entity-specific portion of this id. Unique within a given `ecsd.universe.Universe`,
 		but not between universes.
 	+/
-    EID id;
+	EID id;
 	
 	/++
 		The id of the `ecsd.universe.Universe` that owns this entity.
 	+/
-    UID uid;
+	UID uid;
 	
 	/++
 		A counter of how many times `id` has been reused in the owning `ecsd.universe.Universe`.
@@ -35,7 +35,7 @@ struct EntityID
 		entity are in fact referring to the same entity, and not some unrelated entity that happens
 		to have the same `id`.
 	+/
-    Serial serial;
+	Serial serial;
 }
 
 /++
