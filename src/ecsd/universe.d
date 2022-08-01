@@ -375,15 +375,14 @@ final class Universe
 	}
 	
 	/++
-		Deserializes a set of components onto a single entity.
+		Deserializes a set of components onto a single entity. If the entity already has any
+		components in the set, they will be overwritten.
 		
 		Params:
 		ent = destination entity
 		components = BSON array of component objects, as returned from `serializeEntity`
-		ignoreMissing = whether to suppress warning messages when trying to serialize components
-		that have not been registered
 	+/
-	void deserializeEntity(EntityID ent, Bson components, bool ignoreMissing = false)
+	void deserializeEntity(EntityID ent, Bson components)
 	in(components.type == Bson.Type.array, "Universe.deserializeEntity expected BSON array")
 	{
 		foreach(component; components)
@@ -399,11 +398,11 @@ final class Universe
 			auto ptr = typePath in typeInfoForQualName;
 			if(ptr is null)
 			{
-				if(!ignoreMissing)
-					warningf(
-						"Component type `%s` cannot be deserialized, it has not been registered to this universe",
-						typePath
-					);
+				debug warningf(
+					"Component type `%s` cannot be deserialized, it has not been registered to universe %d",
+					typePath,
+					id,
+				);
 				continue;
 			}
 			
@@ -427,16 +426,14 @@ final class Universe
 		Params:
 		entities = BSON array of arrays, outer arrays corresponding to a single entity, inner arrays
 		containing component objects as returned from `serializeEntity`
-		ignoreMissing = whether to suppress warning messages when trying to serialize components
-		that have not been registered
 	+/
-	void deserialize(Bson entities, bool ignoreMissing = false)
+	void deserialize(Bson entities)
 	in(entities.type == Bson.Type.array, "Universe.deserialize expected BSON array")
 	{
 		foreach(components; entities)
 		{
 			auto ent = allocEntity;
-			deserializeEntity(ent, components, ignoreMissing);
+			deserializeEntity(ent, components);
 		}
 	}
 }
