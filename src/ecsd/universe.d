@@ -240,12 +240,12 @@ final class Universe
 	
 	private void freeEntityInternal(EntityID ent, size_t index)
 	{
+		foreach(vtable; storages.byValue)
+			vtable.remove(ent);
+		
 		usedEnts = usedEnts.remove!(SwapStrategy.unstable)(index);
 		ent.serial++;
 		freeEnts ~= ent;
-		
-		foreach(vtable; storages.byValue)
-			vtable.remove(ent);
 	}
 	
 	/// Destroys all entities that are currently alive in this universe.
