@@ -1,7 +1,9 @@
 ///
 module ecsd.storage;
 
-import ecsd.entity: EntityID;
+import ecsd.entity;
+import ecsd.event.pubsub: publish;
+import ecsd.events;
 
 package template isComponent(T)
 {
@@ -82,11 +84,13 @@ abstract class Storage(Component): IStorage
 				".onComponentAdded does not match the expected signature " ~
 				"(`void onComponentAdded(Universe, EntityID)`) and will not be called"
 			);
+		publish(ComponentAdded!Component(Entity(ent), inst));
 	}
 	
 	/// ditto
 	protected void runRemoveHooks(EntityID ent, Component* inst)
 	{
+		publish(ComponentRemoved!Component(Entity(ent), inst));
 		static if(__traits(compiles, { Component x; x.onComponentRemoved(universe, ent); }))
 			inst.onComponentRemoved(universe, ent);
 		else static if(__traits(hasMember, inst, "onComponentRemoved"))

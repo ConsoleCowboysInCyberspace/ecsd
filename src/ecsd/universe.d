@@ -11,6 +11,8 @@ import std.traits;
 import vibe.data.bson;
 
 import ecsd.entity;
+import ecsd.event.pubsub: publish;
+import ecsd.events;
 
 /++
 	A universe is a collection of components, and a grouping of entities. Entities within the same
@@ -192,6 +194,7 @@ final class Universe
 		static auto tid = typeid(Component);
 		storages[tid] = vtable;
 		typeInfoForQualName[tid.name] = tid;
+		publish(ComponentRegistered!Component(this));
 	}
 	
 	/++
@@ -204,6 +207,7 @@ final class Universe
 	{
 		// FIXME: should probably call remove for all ents
 		// components' remove hooks may manage resources
+		publish(ComponentDeregistered!Component(this));
 		static auto tid = typeid(Component);
 		storages.remove(tid);
 		typeInfoForQualName.remove(tid.name);
@@ -270,6 +274,7 @@ final class Universe
 		auto res = freeEnts.back;
 		freeEnts.popBack;
 		usedEnts ~= res;
+		publish(EntityAllocated(Entity(res)));
 		return res;
 	}
 	
@@ -284,6 +289,7 @@ final class Universe
 	
 	private void freeEntityInternal(EntityID ent, size_t index)
 	{
+		publish(EntityFreed(Entity(ent)));
 		foreach(vtable; storages.byValue)
 			vtable.remove(ent);
 		
@@ -536,6 +542,7 @@ Universe allocUniverse()
     
     auto res = universes[uid];
     res.free = false;
+	publish(UniverseAllocated(res));
     return res;
 }
 
@@ -543,6 +550,7 @@ Universe allocUniverse()
 void freeUniverse(Universe uni)
 {
 	assert(!uni.free);
+	publish(UniverseFreed(uni));
     uni.onDestroy();
     uni.free = true;
 }
