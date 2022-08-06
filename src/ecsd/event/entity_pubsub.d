@@ -14,6 +14,7 @@ import globalPubsub = ecsd.event.pubsub;
 +/
 struct PubSub
 {
+	enum ecsdSerializable = false;
 	private EntityID owningEnt;
 	private EventHandler[][TypeInfo] handlers;
 	

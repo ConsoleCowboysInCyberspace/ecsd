@@ -131,6 +131,11 @@ final class Universe
 		);
 		auto storage = new StorageInst(this);
 		
+		static if(__traits(compiles, { enum bool x = Component.ecsdSerializable; }))
+			enum isSerializable = !isMarkerComponent && Component.ecsdSerializable;
+		else
+			enum isSerializable = !isMarkerComponent;
+		
 		void register(Universe uni)
 		{
 			if(!uni.hasComponent!Component)
@@ -166,7 +171,7 @@ final class Universe
 			auto res = Bson(null);
 			if(auto ptr = storage.tryGet(eid))
 			{
-				static if(isMarkerComponent)
+				static if(!isSerializable)
 					res = Bson.emptyObject;
 				else
 					res = serializeToBson(*ptr);
@@ -179,7 +184,7 @@ final class Universe
 		in(ownsEntity(eid))
 		// in(!value.tryIndex(typeQualPathKey).isNull) // FIXME: actually check the qualpath matches
 		{
-			static if(isMarkerComponent)
+			static if(!isSerializable)
 				Component inst;
 			else
 				auto inst = value.deserializeBson!Component;
