@@ -114,7 +114,8 @@ final class Universe
 	{
 		static assert(isComponent!Component);
 		
-		static if(Component.tupleof.length == 0)
+		enum isMarkerComponent = Component.tupleof.length == 0;
+		static if(isMarkerComponent)
 			alias StorageT = NullStorage;
 		else
 			alias StorageT = StorageTpl;
@@ -165,7 +166,10 @@ final class Universe
 			auto res = Bson(null);
 			if(auto ptr = storage.tryGet(eid))
 			{
-				res = serializeToBson(*ptr);
+				static if(isMarkerComponent)
+					res = Bson.emptyObject;
+				else
+					res = serializeToBson(*ptr);
 				res[typeQualPathKey] = typeid(Component).name;
 			}
 			return res;
@@ -173,9 +177,12 @@ final class Universe
 		
 		void deserialize(EntityID eid, Bson value)
 		in(ownsEntity(eid))
-		in(!value.tryIndex(typeQualPathKey).isNull)
+		// in(!value.tryIndex(typeQualPathKey).isNull) // FIXME: actually check the qualpath matches
 		{
-			auto inst = value.deserializeBson!Component;
+			static if(isMarkerComponent)
+				Component inst;
+			else
+				auto inst = value.deserializeBson!Component;
 			if(auto ptr = storage.tryGet(eid))
 				*ptr = inst;
 			else
