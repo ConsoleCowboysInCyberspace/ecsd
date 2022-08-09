@@ -78,13 +78,6 @@ final class Universe
 		free = true;
 	}
 	
-	// dummy constructor for CTFE tests
-	package this(typeof(null))
-	{
-		assert(__ctfe);
-		id = 0;
-	}
-	
 	private void onDestroy()
 	{
 		destroyAllEntities();
