@@ -82,6 +82,8 @@ final class Universe
 	{
 		destroyAllEntities();
 		storages.clear;
+		typeInfoForQualName.clear;
+		lastAnyInvalidated = MonoTime.init;
 	}
 	
 	/// Returns whether this universe has been set up to store components of the given type.
