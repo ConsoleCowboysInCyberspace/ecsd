@@ -160,6 +160,7 @@ final class Universe
 				destStorage.add(dest, srcVal);
 		}
 		
+		const componentQualName = typeid(Component).name;
 		Bson serialize(EntityID eid)
 		in(ownsEntity(eid))
 		{
@@ -170,14 +171,14 @@ final class Universe
 					res = Bson.emptyObject;
 				else
 					res = serializeToBson(*ptr);
-				res[typeQualPathKey] = typeid(Component).name;
+				res[typeQualPathKey] = componentQualName;
 			}
 			return res;
 		}
 		
 		void deserialize(EntityID eid, Bson value)
 		in(ownsEntity(eid))
-		// in(!value.tryIndex(typeQualPathKey).isNull) // FIXME: actually check the qualpath matches
+		in(value[typeQualPathKey] == Bson(componentQualName))
 		{
 			static if(!isSerializable)
 				Component inst;
