@@ -19,6 +19,8 @@ module ecsd.component;
 +/
 final interface ComponentHooks
 {
+	import vibe.data.bson;
+	
 	import ecsd.universe: Universe;
 	import ecsd.entity;
 	
@@ -32,8 +34,23 @@ final interface ComponentHooks
 	+/
 	void onComponentRemoved(Universe uni, EntityID owner);
 	
-	package static dispatch(string hookName, Component, Args...)(Component* inst, Args args)
+	/++
+		Hook called just after this component has been serialized to BSON.
+		
+		Allows massaging this component's BSON before it is written to the array of component BSONs.
+	+/
+	void onComponentSerialized(Universe uni, EntityID owner, ref Bson destBson);
+	
+	/++
+		Hook called just after this component has been deserialized from BSON.
+		
+		Note that when deserializing into a new entity `onComponentAdded` will be called before this.
+	+/
+	void onComponentDeserialized(Universe uni, EntityID owner, Bson bson);
+	
+	package static dispatch(string hookName, Component, Args...)(Component* inst, auto ref Args args)
 	{
+		import core.lifetime: forward;
 		import std.format;
 		import std.traits;
 		
@@ -43,7 +60,7 @@ final interface ComponentHooks
 		static if(__traits(compiles, { HookFn fn = mixin("&inst.onComponent", hookName); }))
 		{
 			HookFn fn = mixin("&(inst.onComponent", hookName, ")");
-			fn(args);
+			fn(forward!args);
 		}
 		else static if(__traits(hasMember, Component, "onComponent" ~ hookName))
 			static assert(false,

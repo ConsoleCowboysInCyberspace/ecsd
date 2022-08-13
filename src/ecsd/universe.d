@@ -173,22 +173,29 @@ final class Universe
 				else
 					res = serializeToBson(*ptr);
 				res[typeQualPathKey] = componentQualName;
+				ComponentHooks.dispatch!"Serialized"(ptr, this, eid, res);
 			}
 			return res;
 		}
 		
-		void deserialize(EntityID eid, Bson value)
+		void deserialize(EntityID eid, Bson bson)
 		in(ownsEntity(eid))
-		in(value[typeQualPathKey] == Bson(componentQualName))
+		in(bson[typeQualPathKey] == Bson(componentQualName))
 		{
 			static if(!isSerializable)
 				Component inst;
 			else
-				auto inst = value.deserializeBson!Component;
+				auto inst = bson.deserializeBson!Component;
+			
+			Component* hookPtr;
 			if(auto ptr = storage.tryGet(eid))
+			{
 				*ptr = inst;
+				hookPtr = ptr;
+			}
 			else
-				storage.add(eid, inst);
+				hookPtr = storage.add(eid, inst);
+			ComponentHooks.dispatch!"Deserialized"(hookPtr, this, eid, bson);
 		}
 		
 		StorageVtable vtable = {
@@ -499,7 +506,18 @@ unittest
 	}
 	uni.registerComponent!C2;
 	
-	static struct C3 {}
+	static struct C3
+	{
+		void onComponentSerialized(Universe, EntityID, ref Bson destBson)
+		{
+			destBson["foo"] = Bson(42);
+		}
+		
+		void onComponentDeserialized(Universe, EntityID, Bson bson)
+		{
+			assert(bson["foo"] == Bson(42));
+		}
+	}
 	uni.registerComponent!C3;
 	
 	auto e1 = Entity(uni.allocEntity);
