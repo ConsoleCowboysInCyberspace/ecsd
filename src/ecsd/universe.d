@@ -10,6 +10,7 @@ import std.traits;
 
 import vibe.data.bson;
 
+import ecsd.component;
 import ecsd.entity;
 import ecsd.event.pubsub: publish;
 import ecsd.events;

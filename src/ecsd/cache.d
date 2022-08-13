@@ -10,6 +10,7 @@ import std.string;
 import std.traits;
 import std.typecons;
 
+import ecsd.component;
 import ecsd.entity;
 import ecsd.storage;
 import ecsd.universe;

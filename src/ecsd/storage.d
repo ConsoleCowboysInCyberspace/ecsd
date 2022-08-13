@@ -1,32 +1,10 @@
 ///
 module ecsd.storage;
 
+import ecsd.component;
 import ecsd.entity;
 import ecsd.event.pubsub: publish;
 import ecsd.events;
-
-package template isComponent(T)
-{
-	enum errPreamble = "Component type " ~ T.stringof ~ " must ";
-	static assert(
-		is(T == struct),
-		errPreamble ~ "be a struct"
-	);
-	static assert(
-		__traits(isPOD, T),
-		errPreamble ~ "not have copy ctors/destructors"
-	);
-	static assert(
-		__traits(compiles, { T x; }),
-		errPreamble ~ "have a default constructor"
-	);
-	static assert(
-		__traits(compiles, { T x; x = T.init; }),
-		errPreamble ~ "be reassignable"
-	);
-	
-	enum isComponent = true;
-}
 
 package interface IStorage {}
 
@@ -76,29 +54,15 @@ abstract class Storage(Component): IStorage
 	+/
 	protected void runAddHooks(EntityID ent, Component* inst)
 	{
-		static if(__traits(compiles, { Component x; x.onComponentAdded(universe, ent); }))
-			inst.onComponentAdded(universe, ent);
-		else static if(__traits(hasMember, inst, "onComponentAdded"))
-			static assert(false,
-				Component.stringof ~
-				".onComponentAdded does not match the expected signature " ~
-				"(`void onComponentAdded(Universe, EntityID)`) and will not be called"
-			);
 		publish(ComponentAdded!Component(Entity(ent), inst));
+		ComponentHooks.dispatch!"Added"(inst, universe, ent);
 	}
 	
 	/// ditto
 	protected void runRemoveHooks(EntityID ent, Component* inst)
 	{
 		publish(ComponentRemoved!Component(Entity(ent), inst));
-		static if(__traits(compiles, { Component x; x.onComponentRemoved(universe, ent); }))
-			inst.onComponentRemoved(universe, ent);
-		else static if(__traits(hasMember, inst, "onComponentRemoved"))
-			static assert(false,
-				Component.stringof ~
-				".onComponentRemoved does not match the expected signature " ~
-				"(`void onComponentRemoved(Universe, EntityID)`) and will not be called"
-			);
+		ComponentHooks.dispatch!"Removed"(inst, universe, ent);
 	}
 	
 	/++
