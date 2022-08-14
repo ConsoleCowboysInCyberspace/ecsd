@@ -48,29 +48,32 @@ final interface ComponentHooks
 	+/
 	void onComponentDeserialized(Universe uni, EntityID owner, Bson bson);
 	
-	package static dispatch(string hookName, Component, Args...)(Component* inst, auto ref Args args)
+	package static dispatch(string hookNamePartial, Component, Args...)(Component* inst, auto ref Args args)
 	{
 		import core.lifetime: forward;
-		import std.format;
-		import std.traits;
+		import std.algorithm: canFind;
+		import std.format: format;
+		import std.traits: Parameters, ReturnType, fullyQualifiedName;
 		
+		enum hookName = "onComponent%s".format(hookNamePartial);
 		ComponentHooks dummy; // static reference, etc. yield functions, not delegates -_-
-		alias HookFn = typeof(mixin("&dummy.onComponent", hookName));
+		alias HookFn = typeof(mixin("&dummy.", hookName));
 		
-		static if(__traits(compiles, { HookFn fn = mixin("&inst.onComponent", hookName); }))
+		static if(__traits(compiles, { HookFn fn = mixin("&inst.", hookName); }))
 		{
-			HookFn fn = mixin("&(inst.onComponent", hookName, ")");
+			HookFn fn = mixin("&(inst.", hookName, ")");
 			fn(forward!args);
 		}
-		else static if(__traits(hasMember, Component, "onComponent" ~ hookName))
+		// hasMember can be fooled by opDispatch / alias this
+		else static if((cast(string[])[__traits(allMembers, Component)]).canFind(hookName))
 			static assert(false,
-				"%s.onComponent%s does not match the expected signature (`%s`) and will not be called".format(
-					Component.stringof,
+				"%s.%s does not match the expected signature (`%s`) and would not be called".format(
+					fullyQualifiedName!Component,
 					hookName,
-					"%s onComponent%s(%s)".format(
+					"%s %s%s".format(
 						ReturnType!HookFn.stringof,
 						hookName,
-						Parameters!HookFn.stringof[1 .. $ - 1],
+						Parameters!HookFn.stringof,
 					),
 				)
 			);
