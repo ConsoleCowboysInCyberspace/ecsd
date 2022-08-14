@@ -48,7 +48,7 @@ final interface ComponentHooks
 	+/
 	void onComponentDeserialized(Universe uni, EntityID owner, Bson bson);
 	
-	package static dispatch(string hookNamePartial, Component, Args...)(Component* inst, auto ref Args args)
+	package static void dispatch(string hookNamePartial, Component, Args...)(Component* inst, auto ref Args args)
 	{
 		import core.lifetime: forward;
 		import std.algorithm: canFind;
