@@ -60,6 +60,10 @@ final class Universe
 		
 		// add or overwrite this component with the given BSON representation
 		void delegate(EntityID ent, Bson value) deserialize;
+		
+		// dispatch component dserialize hook
+		// see `registerComponent.deserializeHook` for rationale behind this
+		void delegate(EntityID eid, Bson serialized) deserializeHook;
 	}
 	private StorageVtable[TypeInfo] storages;
 	
@@ -183,8 +187,18 @@ final class Universe
 				Component inst;
 			else
 				auto inst = bson.deserializeBson!Component;
-			auto ptr = storage.overwrite(eid, inst);
-			ComponentHooks.dispatch!"Deserialized"(ptr, this, eid, bson);
+			storage.overwrite(eid, inst);
+		}
+		
+		/*
+			This is dispatched separately to allow components to interact with sibling components
+			after all `on*Added` have been called, with the expectation that `*Added` hooks will
+			have initialized all components to a valid (enough) state.
+		*/
+		void deserializeHook(EntityID eid, Bson serialized)
+		in(storage.has(eid))
+		{
+			ComponentHooks.dispatch!"Deserialized"(storage.get(eid), this, eid, serialized);
 		}
 		
 		StorageVtable vtable = {
@@ -195,6 +209,7 @@ final class Universe
 			&copy,
 			&serialize,
 			&deserialize,
+			&deserializeHook,
 		};
 		static auto tid = typeid(Component);
 		storages[tid] = vtable;
@@ -376,7 +391,7 @@ final class Universe
 	{
 		Bson[] result;
 		result.reserve(storages.length);
-		foreach(vtable; storages.byValue)
+		foreach(ref vtable; storages.byValue)
 		{
 			auto component = vtable.serialize(ent);
 			if(!component.isNull)
@@ -396,6 +411,9 @@ final class Universe
 	void deserializeEntity(EntityID ent, Bson components)
 	in(components.type == Bson.Type.array, "Universe.deserializeEntity expected BSON array")
 	{
+		void delegate()[] deferredHooks;
+		deferredHooks.reserve(components.length);
+		
 		foreach(component; components)
 		{
 			const typePathBS = component[typeQualPathKey];
@@ -406,8 +424,8 @@ final class Universe
 			);
 			const typePath = typePathBS.get!string;
 			
-			auto ptr = typePath in typeInfoForQualName;
-			if(ptr is null)
+			auto typeinfo = typePath in typeInfoForQualName;
+			if(typeinfo is null)
 			{
 				debug warningf(
 					"Component type `%s` cannot be deserialized, it has not been registered to universe %d",
@@ -417,8 +435,15 @@ final class Universe
 				continue;
 			}
 			
-			storages[*ptr].deserialize(ent, component);
+			auto vtable = storages[*typeinfo];
+			vtable.deserialize(ent, component);
+			
+			// see `registerComponent.deserializeHook` for rationale
+			deferredHooks ~= { vtable.deserializeHook(ent, component); };
 		}
+		
+		foreach(fn; deferredHooks)
+			fn();
 	}
 	
 	/// Serializes all `activeEntities` in this universe to a BSON array.

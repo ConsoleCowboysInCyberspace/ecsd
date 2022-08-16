@@ -42,9 +42,8 @@ final interface ComponentHooks
 	void onComponentSerialized(Universe uni, EntityID owner, ref Bson destBson);
 	
 	/++
-		Hook called just after this component has been deserialized from BSON.
-		
-		Note that when deserializing into a new entity `onComponentAdded` will be called before this.
+		Hook called after this component has been deserialized from BSON, and after `onComponentAdded`
+		hooks have been called for all components on this entity.
 	+/
 	void onComponentDeserialized(Universe uni, EntityID owner, Bson bson);
 	
