@@ -155,10 +155,7 @@ final class Universe
 			
 			auto destStorage = destUni.getStorage!Component;
 			auto srcVal = *storage.get(src);
-			if(auto ptr = destStorage.tryGet(dest))
-				*ptr = srcVal;
-			else
-				destStorage.add(dest, srcVal);
+			destStorage.overwrite(dest, srcVal);
 		}
 		
 		const componentQualName = typeid(Component).name;
@@ -186,16 +183,8 @@ final class Universe
 				Component inst;
 			else
 				auto inst = bson.deserializeBson!Component;
-			
-			Component* hookPtr;
-			if(auto ptr = storage.tryGet(eid))
-			{
-				*ptr = inst;
-				hookPtr = ptr;
-			}
-			else
-				hookPtr = storage.add(eid, inst);
-			ComponentHooks.dispatch!"Deserialized"(hookPtr, this, eid, bson);
+			auto ptr = storage.overwrite(eid, inst);
+			ComponentHooks.dispatch!"Deserialized"(ptr, this, eid, bson);
 		}
 		
 		StorageVtable vtable = {

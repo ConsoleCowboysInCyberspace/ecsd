@@ -119,6 +119,18 @@ struct Entity
 	}
 	
 	/++
+		Adds `Component` to this entity if it does not yet have it, otherwise overwrites the existing
+		component.
+		
+		Shortcut for `ecsd.storage.Storage.overwrite`.
+	+/
+	Component* overwrite(Component)(Component inst)
+	in(valid, invalidMessage)
+	{
+		return _uni.getStorage!Component.overwrite(_id, inst);
+	}
+	
+	/++
 		Removes `Component` from this entity.
 		
 		Shortcut for `ecsd.storage.Storage.remove`.

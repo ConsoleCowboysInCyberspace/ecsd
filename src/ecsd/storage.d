@@ -101,6 +101,28 @@ abstract class Storage(Component): IStorage
 		)
 	);
 	
+	/++
+		Attaches component to the given entity if it does not have it, or overwrites the existing
+		component if the entity already has an instance.
+		
+		This method should be used instead of `*componentPtr = inst` as the latter does not dispatch
+		component hooks, which may lead to logic errors such as failing to unsubscribe event handlers.
+		
+		Returns: pointer to the stored instance
+	+/
+	final Component* overwrite(EntityID ent, Component inst)
+	{
+		if(auto ptr = tryGet(ent))
+		{
+			runRemoveHooks(ent, ptr);
+			*ptr = inst;
+			runAddHooks(ent, ptr);
+			return ptr;
+		}
+		else
+			return add(ent, inst);
+	}
+	
 	/// Removes the associated component from the given entity.
 	abstract void remove(EntityID ent)
 	in(
