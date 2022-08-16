@@ -179,9 +179,43 @@ struct Entity
 	}
 	
 	/++
-		Shortcut to publish events to this entity's `ecsd.event.entity_pubsub.PubSub` component,
-		if any.
+		Shortcuts to methods on this entity's `ecsd.event.entity_pubsub.PubSub`, doing nothing if this
+		entity has no `PubSub` component.
 	+/
+	void delegate(Entity, ref Event) subscribe(Event)(void delegate(Entity, ref Event) fn, int priority = 0)
+	if(isEvent!Event)
+	{
+		if(auto pubsub = tryGet!PubSub)
+			return pubsub.subscribe(fn, priority);
+		return null;
+	}
+	
+	/// ditto
+	void delegate(Entity, ref Event) subscribe(Event)(void function(Entity, ref Event) fn, int priority = 0)
+	if(isEvent!Event)
+	{
+		if(auto pubsub = tryGet!PubSub)
+			return pubsub.subscribe(fn, priority);
+		return null;
+	}
+	
+	/// ditto
+	void unsubscribe(Event)(void delegate(Entity, ref Event) fn)
+	if(isEvent!Event)
+	{
+		if(auto pubsub = tryGet!PubSub)
+			pubsub.unsubscribe(fn);
+	}
+	
+	/// ditto
+	void unsubscribe(Event)(void function(Entity, ref Event) fn)
+	if(isEvent!Event)
+	{
+		if(auto pubsub = tryGet!PubSub)
+			pubsub.unsubscribe(fn);
+	}
+	
+	/// ditto
 	void publish(Event)(auto ref Event ev)
 	if(isEvent!Event)
 	{
@@ -193,7 +227,8 @@ struct Entity
 	void publish(Event)()
 	if(isEvent!Event)
 	{
-		publish(Event.init);
+		if(auto pubsub = tryGet!PubSub)
+			pubsub.publish!Event;
 	}
 }
 
