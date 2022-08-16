@@ -480,6 +480,8 @@ unittest
 
 unittest
 {
+	import vibe.data.serialization;
+	
 	auto uni = allocUniverse;
 	scope(exit) freeUniverse(uni);
 	
@@ -495,8 +497,13 @@ unittest
 	}
 	uni.registerComponent!C2;
 	
-	static struct C3
+	static struct C3 {}
+	uni.registerComponent!C3;
+	
+	static struct C4
 	{
+		@ignore bool deserialized;
+		
 		void onComponentSerialized(Universe, EntityID, ref Bson destBson)
 		{
 			destBson["foo"] = Bson(42);
@@ -505,14 +512,16 @@ unittest
 		void onComponentDeserialized(Universe, EntityID, Bson bson)
 		{
 			assert(bson["foo"] == Bson(42));
+			deserialized = true;
 		}
 	}
-	uni.registerComponent!C3;
+	uni.registerComponent!C4;
 	
 	auto e1 = Entity(uni.allocEntity);
 	e1.add(C1(42));
 	e1.add(C2("foo"));
 	e1.add!C3;
+	e1.add!C4;
 	
 	auto e2 = Entity(uni.allocEntity);
 	uni.deserializeEntity(e2, uni.serializeEntity(e1));
@@ -521,10 +530,12 @@ unittest
 	assert(e2.has!C2);
 	assert(*e2.get!C2 == C2("foo"));
 	assert(e2.has!C3);
+	assert(e2.has!C4);
+	assert(e2.get!C4.deserialized);
 	
 	auto uni2 = uni.dup;
 	scope(exit) freeUniverse(uni2);
-	uni2.destroyAllEntities;
+	uni2.destroyAllEntities; // duping only registered components
 	
 	uni2.deserialize(uni.serialize);
 	assert(uni2.activeEntities.length == 2);
@@ -535,6 +546,8 @@ unittest
 		assert(ent.has!C2);
 		assert(*ent.get!C2 == C2("foo"));
 		assert(ent.has!C3);
+		assert(ent.has!C4);
+		assert(ent.get!C4.deserialized);
 	}
 }
 
