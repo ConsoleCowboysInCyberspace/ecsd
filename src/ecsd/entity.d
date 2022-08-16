@@ -21,12 +21,12 @@ struct EntityID
 		The entity-specific portion of this id. Unique within a given `ecsd.universe.Universe`,
 		but not between universes.
 	+/
-	EID id;
+	EID id = cast(EID)-1;
 	
 	/++
 		The id of the `ecsd.universe.Universe` that owns this entity.
 	+/
-	UID uid;
+	UID uid = cast(UID)-1;
 	
 	/++
 		A counter of how many times `id` has been reused in the owning `ecsd.universe.Universe`.
@@ -35,7 +35,7 @@ struct EntityID
 		entity are in fact referring to the same entity, and not some unrelated entity that happens
 		to have the same `id`.
 	+/
-	Serial serial;
+	Serial serial = cast(Serial)-1;
 }
 
 /++
@@ -49,6 +49,7 @@ struct Entity
 	import ecsd.event.entity_pubsub: PubSub;
 	import ecsd.universe: Universe, findUniverse;
 	
+	private alias This = typeof(this);
 	private static immutable invalidMessage = "Use of Entity handle after associated entity freed";
 	
 	private EntityID _id;
@@ -229,6 +230,22 @@ struct Entity
 	{
 		if(auto pubsub = tryGet!PubSub)
 			pubsub.publish!Event;
+	}
+	
+	/// Methods invoked by vibe.d's serialization framework, should not be called directly.
+	@trusted EntityID toRepresentation() const
+	{
+		if(!valid)
+			return EntityID.init;
+		return _id;
+	}
+	
+	/// ditto
+	@trusted static This fromRepresentation(EntityID eid)
+	{
+		if(eid.serial == EntityID.Serial.max)
+			return This.init;
+		return This(eid);
 	}
 }
 

@@ -9,6 +9,7 @@ import std.range;
 import std.traits;
 
 import vibe.data.bson;
+import vibe.data.serialization;
 
 import ecsd.component;
 import ecsd.entity;
@@ -175,7 +176,7 @@ final class Universe
 				static if(!isSerializable)
 					res = Bson.emptyObject;
 				else
-					res = serializeToBson(*ptr);
+					res = serializeWithPolicy!(BsonSerializer, EntityIDPolicy)(*ptr, null);
 				res[typeQualPathKey] = componentQualName;
 				ComponentHooks.dispatch!"Serialized"(ptr, this, eid, res);
 			}
@@ -189,7 +190,7 @@ final class Universe
 			static if(!isSerializable)
 				Component inst;
 			else
-				auto inst = bson.deserializeBson!Component;
+				auto inst = bson.deserializeWithPolicy!(BsonSerializer, EntityIDPolicy, Component);
 			storage.overwrite(eid, inst);
 		}
 		
@@ -400,7 +401,13 @@ final class Universe
 	{
 		_serializing++;
 		scope(exit) _serializing--;
-		
+		EntityIDPolicy!().uni = this;
+		EntityIDPolicy!().singleEntity = true;
+		return serializeEntityInternal(ent);
+	}
+	
+	private Bson serializeEntityInternal(EntityID ent)
+	{
 		Bson[] result;
 		result.reserve(storages.length);
 		foreach(ref vtable; storages.byValue)
@@ -409,7 +416,10 @@ final class Universe
 			if(!component.isNull)
 				result ~= component;
 		}
-		return Bson(result);
+		auto bson = Bson.emptyObject;
+		bson["id"] = cast(long)ent.id;
+		bson["components"] = result;
+		return bson;
 	}
 	
 	/++
@@ -420,12 +430,20 @@ final class Universe
 		ent = destination entity
 		components = BSON array of component objects, as returned from `serializeEntity`
 	+/
-	void deserializeEntity(EntityID ent, Bson components)
-	in(components.type == Bson.Type.array, "Universe.deserializeEntity expected BSON array")
+	void deserializeEntity(EntityID ent, Bson bson)
 	{
 		_serializing++;
 		scope(exit) _serializing--;
-		
+		EntityIDPolicy!().uni = this;
+		EntityIDPolicy!().singleEntity = true;
+		deserializeEntityInternal(ent, bson);
+	}
+	
+	private void deserializeEntityInternal(EntityID ent, Bson bson)
+	in(bson.type == Bson.Type.object, "Universe.deserializeEntity expected BSON object")
+	in(!bson["components"].isNull, "Received malformed BSON")
+	{
+		auto components = bson["components"];
 		void delegate()[] deferredHooks;
 		deferredHooks.reserve(components.length);
 		
@@ -466,11 +484,13 @@ final class Universe
 	{
 		_serializing++;
 		scope(exit) _serializing--;
+		EntityIDPolicy!().uni = this;
+		EntityIDPolicy!().singleEntity = false;
 		
 		Bson[] result;
 		result.reserve(activeEntities.length);
 		foreach(ent; this)
-			result ~= serializeEntity(ent);
+			result ~= serializeEntityInternal(ent);
 		return Bson(result);
 	}
 	
@@ -478,20 +498,56 @@ final class Universe
 		Allocates new entities and populates them with deserialized components.
 		
 		Params:
-		entities = BSON array of arrays, outer arrays corresponding to a single entity, inner arrays
-		containing component objects as returned from `serializeEntity`
+		entityBsons = BSON array of entity objects as returned from `serializeEntity`
 	+/
-	void deserialize(Bson entities)
-	in(entities.type == Bson.Type.array, "Universe.deserialize expected BSON array")
+	void deserialize(Bson entityBsons)
+	in(entityBsons.type == Bson.Type.array, "Universe.deserialize expected BSON array")
 	{
 		_serializing++;
 		scope(exit) _serializing--;
+		EntityIDPolicy!().uni = this;
+		EntityIDPolicy!().singleEntity = false;
 		
-		foreach(components; entities)
+		EntityID[] newEnts;
+		newEnts.reserve(entityBsons.length);
+		typeof(EntityIDPolicy!().oldIdsToNew) idMap;
+		foreach(ent; entityBsons)
 		{
-			auto ent = allocEntity;
-			deserializeEntity(ent, components);
+			auto newEnt = allocEntity;
+			idMap[cast(EntityID.EID)ent["id"].get!long] = newEnt;
+			newEnts ~= newEnt;
 		}
+		EntityIDPolicy!().oldIdsToNew = idMap;
+		
+		foreach(size_t i, Bson ent; entityBsons)
+		{
+			deserializeEntityInternal(newEnts[i], ent);
+		}
+	}
+}
+
+private struct EntityIDPolicy(_T: EntityID = EntityID)
+{
+	static Universe uni;
+	static bool singleEntity;
+	static EntityID[EntityID.EID] oldIdsToNew;
+	
+	@trusted static Bson toRepresentation(EntityID ent)
+	in(uni !is null && uni.serializing)
+	{
+		if(singleEntity)
+			return Bson(null);
+		else
+			return Bson(cast(long)ent.id);
+	}
+	
+	@trusted static EntityID fromRepresentation(Bson bson)
+	in(uni !is null && uni.serializing)
+	{
+		if(singleEntity || bson.isNull)
+			return EntityID.init;
+		else
+			return oldIdsToNew.get(cast(EntityID.EID)bson.get!long, EntityID.init);
 	}
 }
 
@@ -549,14 +605,21 @@ unittest
 	static struct C4
 	{
 		@ignore bool deserialized;
+		@ignore EntityID self;
+		
+		void onComponentAdded(Universe, EntityID self)
+		{
+			this.self = self;
+		}
 		
 		void onComponentSerialized(Universe, EntityID, ref Bson destBson)
 		{
 			destBson["foo"] = Bson(42);
 		}
 		
-		void onComponentDeserialized(Universe, EntityID, Bson bson)
+		void onComponentDeserialized(Universe, EntityID self, Bson bson)
 		{
+			assert(this.self == self);
 			assert(bson["foo"] == Bson(42));
 			deserialized = true;
 		}
