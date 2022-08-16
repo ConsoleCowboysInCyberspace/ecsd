@@ -1,6 +1,6 @@
 module ecsd.event;
 
-package:
+package(ecsd):
 
 bool isEvent(T)()
 {

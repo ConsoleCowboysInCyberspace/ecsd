@@ -45,6 +45,8 @@ struct EntityID
 +/
 struct Entity
 {
+	import ecsd.event: isEvent;
+	import ecsd.event.entity_pubsub: PubSub;
 	import ecsd.universe: Universe, findUniverse;
 	
 	private static immutable invalidMessage = "Use of Entity handle after associated entity freed";
@@ -174,6 +176,24 @@ struct Entity
 	out(; !valid)
 	{
 		_uni.freeEntity(_id);
+	}
+	
+	/++
+		Shortcut to publish events to this entity's `ecsd.event.entity_pubsub.PubSub` component,
+		if any.
+	+/
+	void publish(Event)(auto ref Event ev)
+	if(isEvent!Event)
+	{
+		if(auto pubsub = tryGet!PubSub)
+			pubsub.publish(ev);
+	}
+	
+	/// ditto
+	void publish(Event)()
+	if(isEvent!Event)
+	{
+		publish(Event.init);
 	}
 }
 
