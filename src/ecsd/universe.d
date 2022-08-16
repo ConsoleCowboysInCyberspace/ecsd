@@ -76,6 +76,9 @@ final class Universe
 	// max of all storages' lastInvalidated timestamps, allowing caches to skip checking each storage
 	package MonoTime lastAnyInvalidated;
 	
+	// see `serializing` property
+	private uint _serializing;
+	
 	private this()
 	{
 		assert(uidCounter < EntityID.UID.max);
@@ -386,9 +389,18 @@ final class Universe
 		return newUni;
 	}
 	
+	/// Returns whether this universe is in the process of (de)serializing entities.
+	bool serializing()
+	{
+		return _serializing > 0;
+	}
+	
 	/// Serializes the given entity to a BSON array of objects, one object per attached component.
 	Bson serializeEntity(EntityID ent)
 	{
+		_serializing++;
+		scope(exit) _serializing--;
+		
 		Bson[] result;
 		result.reserve(storages.length);
 		foreach(ref vtable; storages.byValue)
@@ -411,6 +423,9 @@ final class Universe
 	void deserializeEntity(EntityID ent, Bson components)
 	in(components.type == Bson.Type.array, "Universe.deserializeEntity expected BSON array")
 	{
+		_serializing++;
+		scope(exit) _serializing--;
+		
 		void delegate()[] deferredHooks;
 		deferredHooks.reserve(components.length);
 		
@@ -449,6 +464,9 @@ final class Universe
 	/// Serializes all `activeEntities` in this universe to a BSON array.
 	Bson serialize()
 	{
+		_serializing++;
+		scope(exit) _serializing--;
+		
 		Bson[] result;
 		result.reserve(activeEntities.length);
 		foreach(ent; this)
@@ -466,6 +484,9 @@ final class Universe
 	void deserialize(Bson entities)
 	in(entities.type == Bson.Type.array, "Universe.deserialize expected BSON array")
 	{
+		_serializing++;
+		scope(exit) _serializing--;
+		
 		foreach(components; entities)
 		{
 			auto ent = allocEntity;
