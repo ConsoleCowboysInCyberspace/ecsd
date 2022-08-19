@@ -217,7 +217,9 @@ final class Universe
 		};
 		static auto tid = typeid(Component);
 		storages[tid] = vtable;
+		storages.rehash;
 		typeInfoForQualName[tid.name] = tid;
+		typeInfoForQualName.rehash;
 		publish(ComponentRegistered!Component(this));
 	}
 	
@@ -541,12 +543,11 @@ final class Universe
 			idMap[cast(EntityID.EID)ent["id"].get!long] = newEnt;
 			newEnts ~= newEnt;
 		}
+		idMap.rehash;
 		EntityIDPolicy!().oldIdsToNew = idMap;
 		
 		foreach(size_t i, Bson ent; entityBsons)
-		{
 			deserializeEntityInternal(newEnts[i], ent);
-		}
 	}
 }
 
