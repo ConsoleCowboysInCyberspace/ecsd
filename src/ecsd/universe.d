@@ -428,7 +428,7 @@ final class Universe
 		
 		Params:
 		ent = destination entity
-		components = BSON array of component objects, as returned from `serializeEntity`
+		bson = BSON object as returned from `serializeEntity`
 	+/
 	void deserializeEntity(EntityID ent, Bson bson)
 	{
