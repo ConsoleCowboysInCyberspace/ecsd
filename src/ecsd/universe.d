@@ -396,7 +396,18 @@ final class Universe
 		return _serializing > 0;
 	}
 	
-	/// Serializes the given entity to a BSON array of objects, one object per attached component.
+	/++
+		Serializes the given entity to a BSON object.
+		
+		Returns:
+		a BSON object containing keys:
+		* `id` with this entity's `EntityID.eid`; used to deserialize relationships between
+			entities (components referencing other entities)
+		* `components`, an array of objects consisting of all components on the entity. Each object
+			additionally has a special key with the fully qualified name of the component's type,
+			required to locate at runtime the appropriate deserialization function. As such, if a
+			component type is renamed/moved then saved data will need to be patched/recreated.
+	+/
 	Bson serializeEntity(EntityID ent)
 	{
 		_serializing++;
@@ -425,6 +436,12 @@ final class Universe
 	/++
 		Deserializes a set of components onto a single entity. If the entity already has any
 		components in the set, they will be overwritten.
+		
+		$(P As this is restricted to a single entity, any fields of components referencing entities
+		will be default-initialized.)
+		
+		$(P Component types present in the given BSON but not registered to this universe will be
+		skipped, though in debug builds a warning will be logged.)
 		
 		Params:
 		ent = destination entity
@@ -479,7 +496,11 @@ final class Universe
 			fn();
 	}
 	
-	/// Serializes all `activeEntities` in this universe to a BSON array.
+	/++
+		Serializes all `activeEntities` in this universe.
+		
+		Returns: BSON array, of objects as returned from `serializeEntity`
+	+/
 	Bson serialize()
 	{
 		_serializing++;
@@ -497,8 +518,11 @@ final class Universe
 	/++
 		Allocates new entities and populates them with deserialized components.
 		
+		Unlike `deserializeEntity`, fields of components which reference other entities will be
+		accurately reconstructed provided the referent entities are included in the given array.
+		
 		Params:
-		entityBsons = BSON array of entity objects as returned from `serializeEntity`
+		entityBsons = BSON array of entity objects, as returned from `serialize`
 	+/
 	void deserialize(Bson entityBsons)
 	in(entityBsons.type == Bson.Type.array, "Universe.deserialize expected BSON array")
