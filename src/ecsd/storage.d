@@ -1,6 +1,9 @@
 ///
 module ecsd.storage;
 
+import std.traits: fullyQualifiedName;
+import std.string: format;
+
 import ecsd.component;
 import ecsd.entity;
 import ecsd.event.pubsub: publish;
@@ -11,12 +14,11 @@ package interface IStorage {}
 /// Base class for component storage implementations.
 abstract class Storage(Component): IStorage
 {
-	private import std.string: format;
 	protected import ecsd.universe: Universe;
 	
 	static assert(isComponent!Component);
 	
-	private enum componentName = Component.stringof;
+	private enum componentName = fullyQualifiedName!Component;
 	
 	/++
 		Pairing of an entity serial number and component instance.
