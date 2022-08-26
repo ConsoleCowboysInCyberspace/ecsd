@@ -22,7 +22,7 @@ abstract class Storage(Component): IStorage
 		Pairing of an entity serial number and component instance.
 		
 		Storage implementations must track entity serial numbers to enforce correctness. The serial
-		can also be used as a sentinel (by setting it to `-1`) to guard memory reuse.
+		can also be used as a sentinel (with a value of `EntityID.Serial.max`) to guard memory reuse.
 	+/
 	protected static struct Pair
 	{
@@ -80,26 +80,46 @@ abstract class Storage(Component): IStorage
 	}
 	
 	/// Returns whether the associated component exists on the given entity.
-	abstract bool has(EntityID ent)
+	final bool has(EntityID ent)
 	in(
 		universe.ownsEntity(ent),
 		"Entity passed to %s storage which belongs to different universe".format(
 			componentName,
 		)
-	);
+	)
+	{
+		return internal_has(ent);
+	}
+	
+	/++
+		Internal implementation of `has`.
+		
+		The virtual methods are separated to allow this base class to enforce invariants for all
+		storage implementations, largely working around current shortcomings in D's contract system.
+	+/
+	protected abstract bool internal_has(EntityID ent);
 	
 	/++
 		Attaches the provided component instance to the given entity.
 		
 		Returns: pointer to the stored instance
 	+/
-	abstract Component* add(EntityID ent, Component inst)
+	final Component* add(EntityID ent, Component inst)
 	in(
 		!has(ent),
 		"Attempt to add %s to an entity that already has it".format(
 			componentName,
 		)
-	);
+	)
+	{
+		return internal_add(ent, inst);
+	}
+	
+	/++
+		Internal implementation of `add`.
+		See_Also: `internal_has` for rationale.
+	+/
+	protected abstract Component* internal_add(EntityID ent, Component inst);
 	
 	/++
 		Attaches component to the given entity if it does not have it, or overwrites the existing
@@ -124,13 +144,22 @@ abstract class Storage(Component): IStorage
 	}
 	
 	/// Removes the associated component from the given entity.
-	abstract void remove(EntityID ent)
+	final void remove(EntityID ent)
 	in(
 		has(ent),
 		"Attempt to remove %s from an entity that does not have it".format(
 			componentName,
 		)
-	);
+	)
+	{
+		return internal_remove(ent);
+	}
+	
+	/++
+		Internal implementation of `remove`.
+		See_Also: `internal_has` for rationale.
+	+/
+	protected abstract void internal_remove(EntityID ent);
 	
 	/++
 		Returns a pointer to the associated component on the given entity.
@@ -138,13 +167,22 @@ abstract class Storage(Component): IStorage
 		It is an error to call this with an entity that does not have any such component, therefore
 		the pointer is guaranteed to not be null.
 	+/
-	abstract Component* get(EntityID ent)
+	final Component* get(EntityID ent)
 	in(
 		has(ent),
 		"Attempt to get %s from an entity that does not have it".format(
 			componentName,
 		)
-	);
+	)
+	{
+		return internal_get(ent);
+	}
+	
+	/++
+		Internal implementation of `get`.
+		See_Also: `internal_has` for rationale.
+	+/
+	protected abstract Component* internal_get(EntityID ent);
 	
 	/++
 		Returns a pointer to the associated component on the given entity. Unlike `get`, this will
@@ -152,13 +190,22 @@ abstract class Storage(Component): IStorage
 		
 		Storage implementations should override this with a more efficient strategy where possible.
 	+/
-	Component* tryGet(EntityID ent)
+	final Component* tryGet(EntityID ent)
 	in(
 		universe.ownsEntity(ent),
 		"Entity passed to %s storage which belongs to different universe".format(
 			componentName,
 		)
 	)
+	{
+		return internal_tryGet(ent);
+	}
+	
+	/++
+		Internal implementation of `tryGet`.
+		See_Also: `internal_has` for rationale.
+	+/
+	protected Component* internal_tryGet(EntityID ent)
 	{
 		if(has(ent))
 			return get(ent);
@@ -249,14 +296,12 @@ final class FlatStorage(Component): Storage!Component
 	
 	this(Universe uni) { super(uni); }
 	
-	override bool has(EntityID ent)
-	in(false)
+	protected override bool internal_has(EntityID ent)
 	{
 		return storage.length > ent.id && storage[ent.id].serial == ent.serial;
 	}
 	
-	override Component* add(EntityID ent, Component inst)
-	in(false)
+	protected override Component* internal_add(EntityID ent, Component inst)
 	{
 		if(storage.length <= ent.id)
 			storage.length = ent.id + 1;
@@ -269,8 +314,7 @@ final class FlatStorage(Component): Storage!Component
 		return &pair.instance;
 	}
 	
-	override void remove(EntityID ent)
-	in(false)
+	protected override void internal_remove(EntityID ent)
 	{
 		auto ptr = &storage[ent.id];
 		runRemoveHooks(ent, &ptr.instance);
@@ -278,8 +322,7 @@ final class FlatStorage(Component): Storage!Component
 		ptr.serial = EntityID.Serial.max;
 	}
 	
-	override Component* get(EntityID ent)
-	in(false)
+	protected override Component* internal_get(EntityID ent)
 	{
 		return &storage[ent.id].instance;
 	}
@@ -298,16 +341,14 @@ final class HashStorage(Component): Storage!Component
 	
 	this(Universe uni) { super(uni); }
 	
-	override bool has(EntityID ent)
-	in(false)
+	protected override bool internal_has(EntityID ent)
 	{
 		auto pair = ent.id in storage;
 		if(pair is null) return false;
 		return pair.serial == ent.serial;
 	}
 	
-	override Component* add(EntityID ent, Component inst)
-	in(false)
+	protected override Component* internal_add(EntityID ent, Component inst)
 	{
 		auto pair = ent.id in storage;
 		if(pair is null)
@@ -324,8 +365,7 @@ final class HashStorage(Component): Storage!Component
 		return &pair.instance;
 	}
 	
-	override void remove(EntityID ent)
-	in(false)
+	protected override void internal_remove(EntityID ent)
 	{
 		auto pair = ent.id in storage;
 		runRemoveHooks(ent, &pair.instance);
@@ -333,14 +373,12 @@ final class HashStorage(Component): Storage!Component
 		pair.serial = EntityID.Serial.max;
 	}
 	
-	override Component* get(EntityID ent)
-	in(false)
+	protected override Component* internal_get(EntityID ent)
 	{
 		return &storage[ent.id].instance;
 	}
 	
-	override Component* tryGet(EntityID ent)
-	in(false)
+	protected override Component* internal_tryGet(EntityID ent)
 	{
 		auto pair = ent.id in storage;
 		if(pair is null || pair.serial != ent.serial)
@@ -369,14 +407,12 @@ final class NullStorage(Component): Storage!Component
 	
 	this(Universe uni) { super(uni); }
 	
-	override bool has(EntityID ent)
-	in(false)
+	protected override bool internal_has(EntityID ent)
 	{
 		return storage.length > ent.id && storage[ent.id];
 	}
 	
-	override Component* add(EntityID ent, Component inst)
-	in(false)
+	protected override Component* internal_add(EntityID ent, Component inst)
 	{
 		if(storage.length <= ent.id)
 			storage.length = ent.id + 1;
@@ -386,16 +422,14 @@ final class NullStorage(Component): Storage!Component
 		return &dummyInstance;
 	}
 	
-	override void remove(EntityID ent)
-	in(false)
+	protected override void internal_remove(EntityID ent)
 	{
 		storage[ent.id] = false;
 		runRemoveHooks(ent, &dummyInstance);
 		invalidateCaches();
 	}
 	
-	override Component* get(EntityID ent)
-	in(false)
+	protected override Component* internal_get(EntityID ent)
 	{
 		return &dummyInstance;
 	}
