@@ -26,7 +26,7 @@ abstract class Storage(Component): IStorage
 	+/
 	protected static struct Pair
 	{
-		EntityID.Serial serial;
+		EntityID.Serial serial = EntityID.Serial.max;
 		Component instance;
 	}
 	
@@ -210,7 +210,7 @@ mixin template storageTests(alias StorageT)
 		scope(exit) freeUniverse(uni);
 		uni.registerComponent!(Foo, StorageT);
 		auto ent = uni.allocEntity;
-		auto storage = cast(StorageT!Foo)uni.getStorage!Foo;
+		auto storage = uni.getStorage!Foo;
 		
 		assert(!storage.has(ent));
 		assert(storage.tryGet(ent) == null);

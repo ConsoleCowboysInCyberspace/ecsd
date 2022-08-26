@@ -321,6 +321,8 @@ final class Universe
 		
 		usedEnts = usedEnts.remove!(SwapStrategy.unstable)(index);
 		ent.serial++;
+		if(ent.serial == EntityID.Serial.max)
+			ent.serial++;
 		freeEnts ~= ent;
 	}
 	

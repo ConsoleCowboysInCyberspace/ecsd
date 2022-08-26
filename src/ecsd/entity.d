@@ -36,6 +36,16 @@ struct EntityID
 		to have the same `id`.
 	+/
 	Serial serial = cast(Serial)-1;
+	
+	@disable this(EID);
+	@disable this(EID, UID, Serial);
+	
+	package this(EID id, UID uid)
+	{
+		this.id = id;
+		this.uid = uid;
+		serial = 0;
+	}
 }
 
 /++
