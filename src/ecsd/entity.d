@@ -107,6 +107,13 @@ struct Entity
 		return _uni !is null && _uni.isEntityAlive(_id);
 	}
 	
+	/// Returns whether this entity is `Spawned`.
+	bool spawned() const
+	in(valid, invalidMessage)
+	{
+		return has!Spawned;
+	}
+	
 	/++
 		Returns whether this entity has `Component`.
 		
@@ -190,6 +197,20 @@ struct Entity
 	}
 	
 	/++
+		Spawn/despawn this entity (by toggling `Spawned` marker.)
+	+/
+	void spawn()
+	{
+		add!Spawned;
+	}
+	
+	/// ditto
+	void despawn()
+	{
+		remove!Spawned;
+	}
+	
+	/++
 		Shortcuts to methods on this entity's `ecsd.event.entity_pubsub.PubSub`, doing nothing if this
 		entity has no `PubSub` component.
 	+/
@@ -258,6 +279,14 @@ struct Entity
 		return This(eid);
 	}
 }
+
+/++
+	Marker component allowing `ecsd.cache.ComponentCache`s to filter entities that are allocated
+	but not yet active.
+	
+	Must be manually registered, or with `ecsd.registerBuiltinComponents`.
++/
+struct Spawned {}
 
 unittest
 {

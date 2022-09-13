@@ -14,5 +14,6 @@ public import ecsd.universe;
 +/
 void registerBuiltinComponents(Universe uni)
 {
+	uni.registerComponent!Spawned;
 	uni.registerComponent!PubSub;
 }

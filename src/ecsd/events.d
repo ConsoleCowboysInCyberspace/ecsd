@@ -1,7 +1,7 @@
 ///
 module ecsd.events;
 
-import ecsd.entity: Entity;
+import ecsd.entity: Entity, Spawned;
 import ecsd.universe: Universe;
 
 /// Published when a `Universe` is allocated.
@@ -52,4 +52,18 @@ struct EntityAllocated
 struct EntityFreed
 {
 	Entity entity; ///
+}
+
+/// Shortcut for `ComponentAdded!ecsd.entity.Spawned`.
+struct EntitySpawned
+{
+	ComponentAdded!Spawned inner;
+	alias inner this;
+}
+
+/// Shortcut for `ComponentRemoved!ecsd.entity.Spawned`.
+struct EntityDespawned
+{
+	ComponentRemoved!Spawned inner;
+	alias inner this;
 }
