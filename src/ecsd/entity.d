@@ -205,6 +205,7 @@ struct Entity
 		additionally dispatch component hooks.
 	+/
 	void spawn()
+	in(valid, invalidMessage)
 	{
 		add!Spawned;
 		_uni.runSpawnHooks(_id);
@@ -212,6 +213,7 @@ struct Entity
 	
 	/// ditto
 	void despawn()
+	in(valid, invalidMessage)
 	{
 		remove!Spawned;
 		_uni.runDespawnHooks(_id);
