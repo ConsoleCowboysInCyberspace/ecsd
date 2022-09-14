@@ -401,7 +401,7 @@ final class NullStorage(Component): Storage!Component
 {
 	import std.bitmanip;
 	
-	static assert(Component.tupleof.length == 0, "NullStorage can only be used with empty structs");
+	static assert(isMarkerComponent!Component, "NullStorage can only be used with empty structs");
 	
 	// instance for return value of add/get, and passing to `run*Hooks`
 	private static Component dummyInstance;

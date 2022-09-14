@@ -102,3 +102,5 @@ package template isComponent(T)
 	
 	enum isComponent = true;
 }
+
+package enum isMarkerComponent(T) = T.tupleof.length == 0;

@@ -128,8 +128,8 @@ final class Universe
 	{
 		static assert(isComponent!Component);
 		
-		enum isMarkerComponent = Component.tupleof.length == 0;
-		static if(isMarkerComponent)
+		enum isMarker = isMarkerComponent!Component;
+		static if(isMarker)
 			alias StorageT = NullStorage;
 		else
 			alias StorageT = StorageTpl;
@@ -146,9 +146,9 @@ final class Universe
 		auto storage = new StorageInst(this);
 		
 		static if(__traits(compiles, { enum bool x = Component.ecsdSerializable; }))
-			enum isSerializable = !isMarkerComponent && Component.ecsdSerializable;
+			enum isSerializable = !isMarker && Component.ecsdSerializable;
 		else
-			enum isSerializable = !isMarkerComponent;
+			enum isSerializable = !isMarker;
 		
 		static if(is(Component == Spawned))
 		{
