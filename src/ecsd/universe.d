@@ -506,7 +506,7 @@ final class Universe
 		if(spawned) runSpawnHooks(ent);
 	}
 	
-	private void deserializeEntityInternal(EntityID ent, Bson bson, out bool spawned = false)
+	private void deserializeEntityInternal(EntityID ent, Bson bson, out bool spawned)
 	in(bson.type == Bson.Type.object, "Universe.deserializeEntity expected BSON object")
 	in(!bson["components"].isNull, "Received malformed BSON")
 	{
@@ -524,8 +524,8 @@ final class Universe
 			);
 			const typePath = typePathBS.get!string;
 			
-			auto typeinfo = typePath in typeInfoForQualName;
-			if(typeinfo is null)
+			auto tinfoPtr = typePath in typeInfoForQualName;
+			if(tinfoPtr is null)
 			{
 				debug warningf(
 					"Component type `%s` cannot be deserialized, it has not been registered to universe %d",
@@ -534,6 +534,7 @@ final class Universe
 				);
 				continue;
 			}
+			auto typeinfo = *tinfoPtr;
 			
 			if(typeinfo is typeid(Spawned))
 			{
@@ -541,7 +542,7 @@ final class Universe
 				continue;
 			}
 			
-			auto vtable = storages[*typeinfo];
+			auto vtable = storages[typeinfo];
 			vtable.deserialize(ent, component);
 			
 			// see `registerComponent.deserializeHook` for rationale
@@ -600,7 +601,7 @@ final class Universe
 		idMap.rehash;
 		EntityIDPolicy!().oldIdsToNew = idMap;
 		
-		void[0][EntityID.EID] spawnedEnts;
+		void[0][EntityID] spawnedEnts;
 		foreach(size_t i, Bson ent; entityBsons)
 		{
 			bool spawned;
