@@ -82,7 +82,7 @@ abstract class Storage(Component): IStorage
 	}
 	
 	/// Returns whether the associated component exists on the given entity.
-	final bool has(EntityID ent)
+	final bool has(EntityID ent) inout
 	in(
 		universe.ownsEntity(ent),
 		"Entity passed to %s storage which belongs to different universe".format(
@@ -99,7 +99,7 @@ abstract class Storage(Component): IStorage
 		The virtual methods are separated to allow this base class to enforce invariants for all
 		storage implementations, largely working around current shortcomings in D's contract system.
 	+/
-	protected abstract bool internal_has(EntityID ent);
+	protected abstract bool internal_has(EntityID ent) inout;
 	
 	/++
 		Attaches the provided component instance to the given entity.
@@ -169,7 +169,7 @@ abstract class Storage(Component): IStorage
 		It is an error to call this with an entity that does not have any such component, therefore
 		the pointer is guaranteed to not be null.
 	+/
-	final Component* get(EntityID ent)
+	final inout(Component*) get(EntityID ent) inout
 	in(
 		has(ent),
 		"Attempt to get %s from an entity that does not have it".format(
@@ -184,7 +184,7 @@ abstract class Storage(Component): IStorage
 		Internal implementation of `get`.
 		See_Also: `internal_has` for rationale.
 	+/
-	protected abstract Component* internal_get(EntityID ent);
+	protected abstract inout(Component*) internal_get(EntityID ent) inout;
 	
 	/++
 		Returns a pointer to the associated component on the given entity. Unlike `get`, this will
@@ -192,7 +192,7 @@ abstract class Storage(Component): IStorage
 		
 		Storage implementations should override this with a more efficient strategy where possible.
 	+/
-	final Component* tryGet(EntityID ent)
+	final inout(Component*) tryGet(EntityID ent) inout
 	in(
 		universe.ownsEntity(ent),
 		"Entity passed to %s storage which belongs to different universe".format(
@@ -207,7 +207,7 @@ abstract class Storage(Component): IStorage
 		Internal implementation of `tryGet`.
 		See_Also: `internal_has` for rationale.
 	+/
-	protected Component* internal_tryGet(EntityID ent)
+	protected inout(Component*) internal_tryGet(EntityID ent) inout
 	{
 		if(has(ent))
 			return get(ent);
@@ -298,7 +298,7 @@ final class FlatStorage(Component): Storage!Component
 	
 	this(Universe uni) { super(uni); }
 	
-	protected override bool internal_has(EntityID ent)
+	protected override bool internal_has(EntityID ent) inout
 	{
 		return storage.length > ent.id && storage[ent.id].serial == ent.serial;
 	}
@@ -324,7 +324,7 @@ final class FlatStorage(Component): Storage!Component
 		ptr.serial = EntityID.Serial.max;
 	}
 	
-	protected override Component* internal_get(EntityID ent)
+	protected override inout(Component*) internal_get(EntityID ent) inout
 	{
 		return &storage[ent.id].instance;
 	}
@@ -343,7 +343,7 @@ final class HashStorage(Component): Storage!Component
 	
 	this(Universe uni) { super(uni); }
 	
-	protected override bool internal_has(EntityID ent)
+	protected override bool internal_has(EntityID ent) inout
 	{
 		auto pair = ent.id in storage;
 		if(pair is null) return false;
@@ -375,12 +375,12 @@ final class HashStorage(Component): Storage!Component
 		pair.serial = EntityID.Serial.max;
 	}
 	
-	protected override Component* internal_get(EntityID ent)
+	protected override inout(Component*) internal_get(EntityID ent) inout
 	{
 		return &storage[ent.id].instance;
 	}
 	
-	protected override Component* internal_tryGet(EntityID ent)
+	protected override inout(Component*) internal_tryGet(EntityID ent) inout
 	{
 		auto pair = ent.id in storage;
 		if(pair is null || pair.serial != ent.serial)
@@ -409,7 +409,7 @@ final class NullStorage(Component): Storage!Component
 	
 	this(Universe uni) { super(uni); }
 	
-	protected override bool internal_has(EntityID ent)
+	protected override bool internal_has(EntityID ent) inout
 	{
 		return storage.length > ent.id && storage[ent.id];
 	}
@@ -431,9 +431,9 @@ final class NullStorage(Component): Storage!Component
 		invalidateCaches();
 	}
 	
-	protected override Component* internal_get(EntityID ent)
+	protected override inout(Component*) internal_get(EntityID ent) inout
 	{
-		return &dummyInstance;
+		return cast(inout)&dummyInstance;
 	}
 }
 mixin storageTests!NullStorage;

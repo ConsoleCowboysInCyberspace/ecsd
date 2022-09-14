@@ -110,7 +110,7 @@ struct Entity
 	}
 	
 	/// Returns whether this entity is `Spawned`.
-	bool spawned()
+	bool spawned() const
 	in(valid, invalidMessage)
 	in(_uni.spawnedStorage !is null, "Spawned has not been registered to this universe")
 	{
@@ -169,7 +169,7 @@ struct Entity
 		
 		Shortcut for `ecsd.storage.Storage.get`.
 	+/
-	Component* get(Component)() inout
+	inout(Component*) get(Component)() inout
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.get(_id);
@@ -181,7 +181,7 @@ struct Entity
 		
 		Shortcut for `ecsd.storage.Storage.tryGet`.
 	+/
-	Component* tryGet(Component)() inout
+	inout(Component*) tryGet(Component)() inout
 	in(valid, invalidMessage)
 	{
 		return _uni.getStorage!Component.tryGet(_id);

@@ -273,7 +273,7 @@ final class Universe
 		Returns the $(LREF Storage) instance that was registered to store components of the
 		given type.
 	+/
-	Storage!Component getStorage(Component)() inout
+	inout(Storage!Component) getStorage(Component)() inout
 	in(hasComponent!Component, "Component " ~ fullyQualifiedName!Component ~ " has not been registered to universe")
 	{
 		return cast(typeof(return))storages[typeid(Component)].inst;
