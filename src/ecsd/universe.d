@@ -501,10 +501,12 @@ final class Universe
 		scope(exit) _serializing--;
 		EntityIDPolicy!().uni = this;
 		EntityIDPolicy!().singleEntity = true;
-		deserializeEntityInternal(ent, bson);
+		bool spawned;
+		deserializeEntityInternal(ent, bson, spawned);
+		if(spawned) runSpawnHooks(ent);
 	}
 	
-	private void deserializeEntityInternal(EntityID ent, Bson bson)
+	private void deserializeEntityInternal(EntityID ent, Bson bson, out bool spawned = false)
 	in(bson.type == Bson.Type.object, "Universe.deserializeEntity expected BSON object")
 	in(!bson["components"].isNull, "Received malformed BSON")
 	{
@@ -530,6 +532,12 @@ final class Universe
 					typePath,
 					id,
 				);
+				continue;
+			}
+			
+			if(typeinfo is typeid(Spawned))
+			{
+				spawned = true;
 				continue;
 			}
 			
@@ -592,8 +600,20 @@ final class Universe
 		idMap.rehash;
 		EntityIDPolicy!().oldIdsToNew = idMap;
 		
+		void[0][EntityID.EID] spawnedEnts;
 		foreach(size_t i, Bson ent; entityBsons)
-			deserializeEntityInternal(newEnts[i], ent);
+		{
+			bool spawned;
+			deserializeEntityInternal(newEnts[i], ent, spawned);
+			if(spawned)
+				spawnedEnts[newEnts[i]] = (void[0]).init;
+		}
+		
+		foreach(ent; spawnedEnts.byKey)
+		{
+			spawnedStorage.add(ent, Spawned.init);
+			runSpawnHooks(ent);
+		}
 	}
 }
 
