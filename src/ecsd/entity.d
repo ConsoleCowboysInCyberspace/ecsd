@@ -1,6 +1,8 @@
 ///
 module ecsd.entity;
 
+version(unittest) import ecsd.universe;
+
 /// The raw type used to reference any given entity.
 struct EntityID
 {
@@ -198,16 +200,21 @@ struct Entity
 	
 	/++
 		Spawn/despawn this entity (by toggling `Spawned` marker.)
+		
+		These methods should be preferred over calling `add`/`remove` directly as these will
+		additionally dispatch component hooks.
 	+/
 	void spawn()
 	{
 		add!Spawned;
+		_uni.runSpawnHooks(_id);
 	}
 	
 	/// ditto
 	void despawn()
 	{
 		remove!Spawned;
+		_uni.runDespawnHooks(_id);
 	}
 	
 	/++
@@ -291,17 +298,50 @@ struct Spawned {}
 unittest
 {
 	import std.exception;
-	import ecsd.universe;
 	
-	static struct TestComponent {}
+	static struct Foo {}
 	
 	auto uni = allocUniverse();
 	scope(exit) freeUniverse(uni);
-	uni.registerComponent!TestComponent;
+	uni.registerComponent!Foo;
 	
 	auto ent = Entity(uni.allocEntity, uni);
-	ent.has!TestComponent; // ensure does not throw
+	ent.has!Foo; // ensure does not throw
 	assert(ent.valid);
 	ent.free;
-	assertThrown!Throwable(ent.has!TestComponent);
+	assertThrown!Throwable(ent.has!Foo);
+}
+
+unittest
+{
+	static struct Foo
+	{
+		bool spawned;
+		
+		void onEntitySpawned(Universe, EntityID)
+		{
+			spawned = true;
+		}
+		
+		void onEntityDespawned(Universe, EntityID)
+		{
+			spawned = false;
+		}
+	}
+	
+	auto uni = allocUniverse;
+	scope(exit) freeUniverse(uni);
+	uni.registerComponent!Spawned;
+	uni.registerComponent!Foo;
+	
+	auto ent = Entity(uni.allocEntity, uni);
+	auto ptr = ent.add!Foo;
+	assert(!ent.spawned);
+	assert(!ptr.spawned);
+	ent.spawn;
+	assert(ent.spawned);
+	assert(ptr.spawned);
+	ent.despawn;
+	assert(!ent.spawned);
+	assert(!ptr.spawned);
 }

@@ -57,14 +57,14 @@ abstract class Storage(Component): IStorage
 	protected void runAddHooks(EntityID ent, Component* inst)
 	{
 		publish(ComponentAdded!Component(Entity(ent), inst));
-		ComponentHooks.dispatch!"Added"(inst, universe, ent);
+		ComponentHooks.dispatch!"ComponentAdded"(inst, universe, ent);
 	}
 	
 	/// ditto
 	protected void runRemoveHooks(EntityID ent, Component* inst)
 	{
 		publish(ComponentRemoved!Component(Entity(ent), inst));
-		ComponentHooks.dispatch!"Removed"(inst, universe, ent);
+		ComponentHooks.dispatch!"ComponentRemoved"(inst, universe, ent);
 	}
 	
 	/++

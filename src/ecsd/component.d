@@ -24,14 +24,10 @@ final interface ComponentHooks
 	import ecsd.universe: Universe;
 	import ecsd.entity;
 	
-	/++
-		Hook called just after this component is added to `owner`.
-	+/
+	/// Hook called just after this component is added to `owner`.
 	void onComponentAdded(Universe uni, EntityID owner);
 	
-	/++
-		Hook called just before this component is removed from `owner`.
-	+/
+	/// Hook called just before this component is removed from `owner`.
 	void onComponentRemoved(Universe uni, EntityID owner);
 	
 	/++
@@ -47,6 +43,12 @@ final interface ComponentHooks
 	+/
 	void onComponentDeserialized(Universe uni, EntityID owner, Bson bson);
 	
+	/// Hook called just after `owner` has been `ecsd.entity.Entity.spawn`ed.
+	void onEntitySpawned(Universe uni, EntityID owner);
+	
+	/// Hook called just before `owner` has been `ecsd.entity.Entity.despawn`ed.
+	void onEntityDespawned(Universe uni, EntityID owner);
+	
 	package static void dispatch(string hookNamePartial, Component, Args...)(Component* inst, auto ref Args args)
 	{
 		import core.lifetime: forward;
@@ -54,9 +56,8 @@ final interface ComponentHooks
 		import std.format: format;
 		import std.traits: Parameters, ReturnType, fullyQualifiedName;
 		
-		enum hookName = "onComponent%s".format(hookNamePartial);
-		ComponentHooks dummy; // static reference, etc. yield functions, not delegates -_-
-		alias HookFn = typeof(mixin("&dummy.", hookName));
+		enum hookName = "on" ~ hookNamePartial;
+		alias HookFn = typeof(mixin("&ComponentHooks.init.", hookName));
 		
 		static if(__traits(compiles, { HookFn fn = mixin("&inst.", hookName); }))
 		{

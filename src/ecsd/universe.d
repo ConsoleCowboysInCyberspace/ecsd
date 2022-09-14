@@ -65,6 +65,12 @@ final class Universe
 		// dispatch component dserialize hook
 		// see `registerComponent.deserializeHook` for rationale behind this
 		void delegate(EntityID eid, Bson serialized) deserializeHook;
+		
+		// runs `onEntitySpawned`/`Despawned` hooks
+		void delegate(EntityID eid) spawn;
+		
+		// ditto
+		void delegate(EntityID eid) despawn;
 	}
 	private StorageVtable[TypeInfo] storages;
 	
@@ -178,7 +184,7 @@ final class Universe
 				else
 					res = serializeWithPolicy!(BsonSerializer, EntityIDPolicy)(*ptr, null);
 				res[typeQualPathKey] = componentQualName;
-				ComponentHooks.dispatch!"Serialized"(ptr, this, eid, res);
+				ComponentHooks.dispatch!"ComponentSerialized"(ptr, this, eid, res);
 			}
 			return res;
 		}
@@ -202,7 +208,19 @@ final class Universe
 		void deserializeHook(EntityID eid, Bson serialized)
 		in(storage.has(eid))
 		{
-			ComponentHooks.dispatch!"Deserialized"(storage.get(eid), this, eid, serialized);
+			ComponentHooks.dispatch!"ComponentDeserialized"(storage.get(eid), this, eid, serialized);
+		}
+		
+		void spawn(EntityID eid)
+		{
+			if(auto ptr = storage.tryGet(eid))
+				ComponentHooks.dispatch!"EntitySpawned"(ptr, this, eid);
+		}
+		
+		void despawn(EntityID eid)
+		{
+			if(auto ptr = storage.tryGet(eid))
+				ComponentHooks.dispatch!"EntityDespawned"(ptr, this, eid);
 		}
 		
 		StorageVtable vtable = {
@@ -214,6 +232,8 @@ final class Universe
 			&serialize,
 			&deserialize,
 			&deserializeHook,
+			&spawn,
+			&despawn,
 		};
 		static auto tid = typeid(Component);
 		storages[tid] = vtable;
@@ -331,6 +351,18 @@ final class Universe
 	{
 		foreach_reverse(i, eid; usedEnts)
 			freeEntityInternal(eid, i);
+	}
+	
+	package void runSpawnHooks(EntityID ent)
+	{
+		foreach(vtable; storages)
+			vtable.spawn(ent);
+	}
+	
+	package void runDespawnHooks(EntityID ent)
+	{
+		foreach(vtable; storages)
+			vtable.despawn(ent);
 	}
 	
 	/// Returns a slice of `ecsd.entity.EntityID`s which are currently alive in this universe.
