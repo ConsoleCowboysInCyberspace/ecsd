@@ -86,6 +86,9 @@ final class Universe
 	// see `serializing` property
 	private uint _serializing;
 	
+	// cached reference to `Spawned` storage, for faster lookups in `Entity` methods and when freeing
+	package Storage!Spawned spawnedStorage = null;
+	
 	private this()
 	{
 		assert(uidCounter < EntityID.UID.max);
@@ -99,6 +102,7 @@ final class Universe
 		storages.clear;
 		typeInfoForQualName.clear;
 		lastAnyInvalidated = MonoTime.init;
+		spawnedStorage = null;
 	}
 	
 	/// Returns whether this universe has been set up to store components of the given type.
@@ -145,6 +149,12 @@ final class Universe
 			enum isSerializable = !isMarkerComponent && Component.ecsdSerializable;
 		else
 			enum isSerializable = !isMarkerComponent;
+		
+		static if(is(Component == Spawned))
+		{
+			assert(spawnedStorage is null);
+			spawnedStorage = storage;
+		}
 		
 		void register(Universe uni)
 		{
@@ -336,6 +346,8 @@ final class Universe
 	private void freeEntityInternal(EntityID ent, size_t index)
 	{
 		publish(EntityFreed(Entity(ent)));
+		if(spawnedStorage !is null && spawnedStorage.has(ent))
+			runDespawnHooks(ent);
 		foreach(vtable; storages.byValue)
 			vtable.remove(ent);
 		

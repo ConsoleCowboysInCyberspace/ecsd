@@ -110,10 +110,11 @@ struct Entity
 	}
 	
 	/// Returns whether this entity is `Spawned`.
-	bool spawned() const
+	bool spawned()
 	in(valid, invalidMessage)
+	in(_uni.spawnedStorage !is null, "Spawned has not been registered to this universe")
 	{
-		return has!Spawned;
+		return _uni.spawnedStorage.has(_id);
 	}
 	
 	/++
@@ -201,21 +202,23 @@ struct Entity
 	/++
 		Spawn/despawn this entity (by toggling `Spawned` marker.)
 		
-		These methods should be preferred over calling `add`/`remove` directly as these will
+		These methods should be used instead of calling `add`/`remove` directly, as these will
 		additionally dispatch component hooks.
 	+/
 	void spawn()
 	in(valid, invalidMessage)
+	in(_uni.spawnedStorage !is null, "Spawned has not been registered to this universe")
 	{
-		add!Spawned;
+		_uni.spawnedStorage.add(_id, Spawned.init);
 		_uni.runSpawnHooks(_id);
 	}
 	
 	/// ditto
 	void despawn()
 	in(valid, invalidMessage)
+	in(_uni.spawnedStorage !is null, "Spawned has not been registered to this universe")
 	{
-		remove!Spawned;
+		_uni.spawnedStorage.remove(_id);
 		_uni.runDespawnHooks(_id);
 	}
 	
@@ -316,6 +319,7 @@ unittest
 
 unittest
 {
+	static bool despawned;
 	static struct Foo
 	{
 		bool spawned;
@@ -328,6 +332,7 @@ unittest
 		void onEntityDespawned(Universe, EntityID)
 		{
 			spawned = false;
+			despawned = true;
 		}
 	}
 	
@@ -346,4 +351,10 @@ unittest
 	ent.despawn;
 	assert(!ent.spawned);
 	assert(!ptr.spawned);
+	assert(despawned);
+	
+	despawned = false;
+	ent.spawn;
+	ent.free;
+	assert(despawned);
 }
