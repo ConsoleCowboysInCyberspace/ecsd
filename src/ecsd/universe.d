@@ -301,14 +301,7 @@ final class Universe
 	/// Returns whether this universe owns the given entity.
 	bool ownsEntity(EntityID ent) const
 	{
-		bool extra = true;
-		debug
-		{
-			// ignoring serials as a universe still owns older, dead incarnations
-			alias pred = (e) => e.id == ent.id;
-			extra = usedEnts.canFind!pred || freeEnts.canFind!pred;
-		}
-		return ent.uid == id && extra;
+		return ent.uid == id && ent.id < eidCounter;
 	}
 	
 	/// Returns whether the given entity is currently alive.
