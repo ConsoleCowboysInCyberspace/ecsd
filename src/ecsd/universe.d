@@ -172,6 +172,13 @@ final class Universe
 		void copy(EntityID src, EntityID dest)
 		in(ownsEntity(src))
 		{
+			// `Spawned` is added explicitly by `copyEntity`/`dup` while dispatching spawned hook
+			static if(is(Component == Spawned))
+			{
+				bool bogus;
+				if(!bogus) return;
+			}
+			
 			if(!storage.has(src)) return;
 			
 			auto destUni = findUniverse(dest.uid);
@@ -409,16 +416,34 @@ final class Universe
 	EntityID copyEntity(EntityID source, EntityID destination)
 	in(ownsEntity(source) && isEntityAlive(source), "Attempt to copy dead entity / entity from another universe")
 	{
-		foreach(vtable; storages.byValue)
-			vtable.copy(source, destination);
-		return destination;
+		return copyEntityInternal(source, destination, true);
 	}
 
 	/// ditto
 	EntityID copyEntity(EntityID source)
 	in(ownsEntity(source) && isEntityAlive(source), "Attempt to copy dead entity / entity from another universe")
 	{
-		return copyEntity(source, allocEntity);
+		return copyEntityInternal(source, allocEntity, true);
+	}
+	
+	private EntityID copyEntityInternal(EntityID source, EntityID destination, bool single, Universe destUni = null)
+	{
+		foreach(vtable; storages.byValue)
+			vtable.copy(source, destination);
+		
+		if(destUni is null) destUni = findUniverse(destination.uid);
+		if(
+			single && // hook is deferred when duping entire universe
+			spawnedStorage !is null &&
+			destUni.spawnedStorage !is null &&
+			spawnedStorage.has(source)
+		)
+		{
+			destUni.spawnedStorage.add(destination, Spawned.init);
+			destUni.runSpawnHooks(destination);
+		}
+		
+		return destination;
 	}
 	
 	/// Allocates a new universe and places into it copies of every entity in this universe.
@@ -429,10 +454,23 @@ final class Universe
 		foreach(vtable; storages.byValue)
 			vtable.register(newUni);
 		
+		EntityID[] spawned;
+		spawned.reserve(usedEnts.length);
 		foreach(ent; this)
 		{
 			auto newEnt = newUni.allocEntity;
-			copyEntity(ent.id, newEnt);
+			copyEntityInternal(ent.id, newEnt, false);
+			
+			if(spawnedStorage !is null && spawnedStorage.has(ent))
+				spawned ~= newEnt;
+		}
+		
+		// deferred such that all spawned hooks are run strictly after `on*Added`,
+		// i.e. all entities are in a fully-constructed state
+		foreach(ent; spawned)
+		{
+			newUni.spawnedStorage.add(ent, Spawned.init);
+			newUni.runSpawnHooks(ent);
 		}
 		
 		return newUni;
