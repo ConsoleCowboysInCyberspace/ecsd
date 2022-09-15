@@ -3,6 +3,7 @@ module ecsd.event.pubsub;
 
 import std.algorithm;
 import std.functional: toDelegate;
+import std.typecons: Flag;
 
 import ecsd.event: isEvent;
 
@@ -35,6 +36,56 @@ void delegate(ref Event) subscribe(Event)(void function(ref Event) fn, int prior
 if(isEvent!Event)
 {
 	return subscribe(fn.toDelegate, priority);
+}
+
+/// Return type for transient subscribers. See `subscribeTransient`.
+alias Unsubscribe = Flag!"Unsubscribe";
+
+/++
+	A version of `subscribe` accepting subscribers which may request an unsubscribe simply via
+	return value, avoiding having to cache somewhere the returned delegate.
++/
+void delegate(ref Event) subscribeTransient(Event)(Unsubscribe delegate(ref Event) fn, int priority = 0)
+{
+	// FIXME: investigate whether this can be optimized, even if only taking pressure off the array
+	// of non-transients with another array; std.algrithm.merge can be used to recombine them
+	void delegate(ref Event) subscriber;
+	subscriber = subscribe((ref Event ev) {
+		if(fn(ev) == Unsubscribe.yes)
+			unsubscribe(subscriber);
+	}, priority);
+	return subscriber;
+}
+
+/// ditto
+void delegate(ref Event) subscribeTransient(Event)(Unsubscribe function(ref Event) fn, int priority = 0)
+{
+	return subscribeTransient(fn.toDelegate, priority);
+}
+
+/++
+	A `subscribeTransient` optimized for subscribers which wish to receive only a fixed number of
+	events before unsubscribing.
+	
+	Params:
+	numEvents = number of events to process before unsubscribing, clamped to a minimum of 1
++/
+void delegate(ref Event) subscribeCounting(Event)(void delegate(ref Event) fn, size_t numEvents, int priority = 0)
+{
+	size_t eventsProcessed;
+	void delegate(ref Event) subscriber;
+	subscriber = subscribe((ref Event ev) {
+		fn(ev);
+		if(++eventsProcessed >= numEvents)
+			unsubscribe(subscriber);
+	}, priority);
+	return subscriber;
+}
+
+/// ditto
+void delegate(ref Event) subscribeCounting(Event)(void function(ref Event) fn, size_t numEvents, int priority = 0)
+{
+	return subscribeCounting(fn.toDelegate, numEvents, priority);
 }
 
 /++
@@ -180,6 +231,20 @@ unittest
 	auto degF1 = subscribe(&f1);
 	auto degF2 = subscribe(&f2, 1);
 	
+	bool calledTrans1, calledTrans2;
+	subscribeTransient((ref TestEvent _) {
+		assert(calledf1);
+		assert(calledf2);
+		calledTrans1 = true;
+		return Unsubscribe.yes;
+	}, -1);
+	subscribeCounting((ref TestEvent _) {
+		assert(calledf1);
+		assert(calledf2);
+		assert(calledTrans1);
+		calledTrans2 = true;
+	}, 1, -2);
+	
 	static struct Bar {}
 	static void f3(ref Bar) { assert(false); }
 	subscribe(&f3); // @suppress(dscanner.unused_result)
@@ -188,6 +253,8 @@ unittest
 	publish(ev);
 	assert(calledf1);
 	assert(calledf2);
+	assert(calledTrans1);
+	assert(calledTrans2);
 	assert(calledf1Toplevel);
 	assert(calledf2Toplevel);
 	assert(ev.x == 2);
@@ -196,6 +263,7 @@ unittest
 	static assert(__traits(compiles, { publish!TestEvent; }));
 	
 	calledf1 = calledf2 = false;
+	calledTrans1 = calledTrans2 = false;
 	calledf1Toplevel = calledf2Toplevel = false;
 	ev.x = 1;
 	unsubscribe(degF1);
@@ -205,6 +273,8 @@ unittest
 	publish(ev);
 	assert(!calledf1);
 	assert(!calledf2);
+	assert(!calledTrans1);
+	assert(!calledTrans2);
 	assert(!calledf1Toplevel);
 	assert(!calledf2Toplevel);
 	assert(ev.x == 1);
