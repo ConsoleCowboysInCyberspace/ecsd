@@ -541,7 +541,11 @@ final class Universe
 		EntityIDPolicy!().singleEntity = true;
 		bool spawned;
 		deserializeEntityInternal(ent, bson, spawned);
-		if(spawned) runSpawnHooks(ent);
+		if(spawned)
+		{
+			spawnedStorage.add(ent, Spawned.init);
+			runSpawnHooks(ent);
+		}
 	}
 	
 	private void deserializeEntityInternal(EntityID ent, Bson bson, out bool spawned)
@@ -574,6 +578,7 @@ final class Universe
 			}
 			auto typeinfo = *tinfoPtr;
 			
+			// handled when dispatching `on*Spawned`
 			if(typeinfo is typeid(Spawned))
 			{
 				spawned = true;
@@ -639,16 +644,17 @@ final class Universe
 		idMap.rehash;
 		EntityIDPolicy!().oldIdsToNew = idMap;
 		
-		void[0][EntityID] spawnedEnts;
+		EntityID[] spawnedEnts;
+		spawnedEnts.reserve(newEnts.length);
 		foreach(size_t i, Bson ent; entityBsons)
 		{
 			bool spawned;
 			deserializeEntityInternal(newEnts[i], ent, spawned);
-			if(spawned)
-				spawnedEnts[newEnts[i]] = (void[0]).init;
+			if(spawned) spawnedEnts ~= newEnts[i];
 		}
 		
-		foreach(ent; spawnedEnts.byKey)
+		// as with `dup`, deferred until after all `on*Added` and `on*Deserialized` have been dispatched
+		foreach(ent; spawnedEnts)
 		{
 			spawnedStorage.add(ent, Spawned.init);
 			runSpawnHooks(ent);
