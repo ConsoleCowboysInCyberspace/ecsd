@@ -315,8 +315,6 @@ final class Universe
 	bool isEntityAlive(EntityID ent) const
 	in(ownsEntity(ent), "Attempt to use entity with universe that does not own it")
 	{
-		// FIXME: there needs to be a distinction between entities that are alive,
-		// and those that have merely been allocated
 		return usedEnts.canFind(ent);
 	}
 	
@@ -704,7 +702,7 @@ unittest
 	
 	auto ent = uni.allocEntity;
 	assert(uni.ownsEntity(ent));
-	assert(uni.isEntityAlive(ent)); // FIXME: see isEntityAlive
+	assert(uni.isEntityAlive(ent));
 	uni.freeEntity(ent);
 	assert(uni.ownsEntity(ent));
 	assert(!uni.isEntityAlive(ent));
