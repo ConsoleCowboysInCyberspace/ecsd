@@ -643,6 +643,7 @@ private struct EntityIDPolicy(_T: EntityID = EntityID)
 	}
 }
 
+// basic functionality
 unittest
 {
 	auto uni = allocUniverse;
@@ -672,6 +673,7 @@ unittest
 	assert(storage.has(e2));
 }
 
+// serialization
 unittest
 {
 	import vibe.data.serialization;
@@ -750,6 +752,62 @@ unittest
 		assert(ent.has!C4);
 		assert(ent.get!C4.deserialized);
 	}
+}
+
+// special cases for dispatching onEntitySpawned
+unittest
+{
+	import vibe.data.serialization;
+	
+	static bool spawned;
+	static struct Foo
+	{
+		bool dummy;
+		
+		void onEntitySpawned(Universe uni, EntityID owner)
+		{
+			assert(!spawned);
+			spawned = true;
+		}
+	}
+	
+	// setup
+	auto uni = allocUniverse;
+	scope(exit) freeUniverse(uni);
+	uni.registerComponent!Spawned;
+	uni.registerComponent!Foo;
+	auto e1 = Entity(uni.allocEntity, uni);
+	e1.add!Foo;
+	e1.spawn;
+	
+	// single entity copy
+	spawned = false;
+	auto e2 = Entity(uni.copyEntity(e1), uni);
+	assert(spawned);
+	assert(e2.spawned);
+	
+	// whole-universe copy
+	e2.free;
+	spawned = false;
+	auto uni2 = uni.dup;
+	scope(exit) freeUniverse(uni2);
+	assert(spawned);
+	assert(uni2.spawnedStorage.has(uni2.activeEntities[0]));
+	
+	// single entity serialization round trip
+	e2 = Entity(uni.allocEntity(), uni);
+	spawned = false;
+	uni.deserializeEntity(e2, uni.serializeEntity(e1));
+	assert(spawned);
+	assert(e2.spawned);
+	
+	// whole-universe serialization round trip
+	e2.free;
+	spawned = false;
+	uni2.destroyAllEntities;
+	uni2.deserialize(uni.serialize);
+	assert(spawned);
+	assert(uni2.spawnedStorage.has(uni2.activeEntities[0]));
 }
 
 private Universe[] universes;
