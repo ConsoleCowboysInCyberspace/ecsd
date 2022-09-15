@@ -9,6 +9,9 @@ import ecsd.event: isEvent;
 import ecsd.universe;
 import globalPubsub = ecsd.event.pubsub;
 
+///
+public import ecsd.event.pubsub: Unsubscribe;
+
 /++
 	A component implementing an entity->entity event model similar to `ecsd.event.pubsub`.
 +/
@@ -53,6 +56,53 @@ struct PubSub
 	if(isEvent!Event)
 	{
 		return subscribe(toDelegate(fn), priority);
+	}
+	
+	/++
+		A version of `subscribe` accepting subscribers which may request an unsubscribe simply via
+		return value, avoiding having to cache somewhere the returned delegate.
+	+/
+	void delegate(Entity, ref Event) subscribeTransient(Event)(Unsubscribe delegate(Entity, ref Event) fn, int priority = 0)
+	{
+		// FIXME: investigate whether this can be optimized, even if only taking pressure off the array
+		// of non-transients with another array; std.algrithm.merge can be used to recombine them
+		void delegate(Entity, ref Event) subscriber;
+		subscriber = subscribe((Entity ent, ref Event ev) {
+			if(fn(ent, ev) == Unsubscribe.yes)
+				unsubscribe(subscriber);
+		}, priority);
+		return subscriber;
+	}
+
+	/// ditto
+	void delegate(Entity, ref Event) subscribeTransient(Event)(Unsubscribe function(Entity, ref Event) fn, int priority = 0)
+	{
+		return subscribeTransient(fn.toDelegate, priority);
+	}
+
+	/++
+		A `subscribeTransient` optimized for subscribers which wish to receive only a fixed number of
+		events before unsubscribing.
+		
+		Params:
+		numEvents = number of events to process before unsubscribing, clamped to a minimum of 1
+	+/
+	void delegate(Entity, ref Event) subscribeCounting(Event)(void delegate(Entity, ref Event) fn, size_t numEvents, int priority = 0)
+	{
+		size_t eventsProcessed;
+		void delegate(Entity, ref Event) subscriber;
+		subscriber = subscribe((Entity ent, ref Event ev) {
+			fn(ent, ev);
+			if(++eventsProcessed >= numEvents)
+				unsubscribe(subscriber);
+		}, priority);
+		return subscriber;
+	}
+
+	/// ditto
+	void delegate(Entity, ref Event) subscribeCounting(Event)(void function(Entity, ref Event) fn, size_t numEvents, int priority = 0)
+	{
+		return subscribeCounting(fn.toDelegate, numEvents, priority);
 	}
 	
 	/++
@@ -177,6 +227,20 @@ unittest
 	auto ptrF2 = pubsub.subscribe(&f2, 1);
 	globalPubsub.subscribe(&f3);
 	
+	bool calledTrans1, calledTrans2;
+	pubsub.subscribeTransient((Entity, ref Foo _) {
+		assert(calledf1);
+		assert(calledf2);
+		calledTrans1 = true;
+		return Unsubscribe.yes;
+	}, -1);
+	pubsub.subscribeCounting((Entity, ref Foo _) {
+		assert(calledf1);
+		assert(calledf2);
+		assert(calledTrans1);
+		calledTrans2 = true;
+	}, 1, -2);
+	
 	static struct Bar {}
 	static void f4(Entity, ref Bar) { assert(false); }
 	pubsub.subscribe(&f4);
@@ -186,12 +250,15 @@ unittest
 	assert(calledf1);
 	assert(calledf2);
 	assert(calledf3);
+	assert(calledTrans1);
+	assert(calledTrans2);
 	assert(ev.x == 2);
 	
 	static assert(__traits(compiles, { pubsub.publish(Foo()); }));
 	static assert(__traits(compiles, { pubsub.publish!Foo; }));
 	
 	calledf1 = calledf2 = calledf3 = false;
+	calledTrans1 = calledTrans2 = false;
 	ev.x = 1;
 	pubsub.unsubscribe(ptrF1);
 	pubsub.unsubscribe(ptrF2);
@@ -199,6 +266,8 @@ unittest
 	assert(!calledf1);
 	assert(!calledf2);
 	assert(calledf3);
+	assert(!calledTrans1);
+	assert(!calledTrans2);
 	assert(ev.x == 1);
 	
 	static struct UnusedEvent {}
